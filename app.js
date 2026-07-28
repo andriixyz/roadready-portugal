@@ -1,3 +1,5 @@
+import { createSyncController } from "./sync.js";
+
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const main = $("#mainContent");
@@ -71,14 +73,38 @@ let questions = [];
 let corpusMeta = { count: 0, generatedAt: null };
 let session = null;
 let timerId = null;
+let syncController = null;
+let syncState = {
+  configured: false,
+  status: "local",
+  user: null,
+  lastSyncedAt: null,
+  message: "Saved on this device.",
+};
 
+function normaliseProfile(value = {}) {
+  return {
+    ...defaultProfile(),
+    ...value,
+    questionProgress: { ...(value.questionProgress || {}) },
+    sessions: Array.isArray(value.sessions) ? value.sessions.slice(-100) : [],
+  };
+}
 function loadProfile() {
-  try { return { ...defaultProfile(), ...JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}") }; }
+  try { return normaliseProfile(JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}")); }
   catch { return defaultProfile(); }
 }
-function saveProfile() {
+function saveProfile({ sync = true } = {}) {
   profile.updatedAt = new Date().toISOString();
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  if (sync) syncController?.schedule();
+  updateStorageSummary();
+}
+function applySyncedProfile(incoming) {
+  profile = normaliseProfile(incoming);
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  render();
+  updateStorageSummary();
 }
 const escapeHtml = (value = "") => String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
 const formatDate = (date = new Date()) => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(date);
@@ -320,7 +346,15 @@ function finishSession() {
   if (session.mode === "exam") session.questions.forEach((q, index) => recordQuestion(q, session.answers[index]?.correct || false));
   const correct = session.answers.filter((answer) => answer?.correct).length;
   const total = session.questions.length;
-  const result = { mode: session.mode, correct, total, percent: Math.round((correct / total) * 100), completedAt: new Date().toISOString(), durationSeconds: Math.round((Date.now() - session.startedAt) / 1000) };
+  const result = {
+    id: globalThis.crypto?.randomUUID?.() || `session-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    mode: session.mode,
+    correct,
+    total,
+    percent: Math.round((correct / total) * 100),
+    completedAt: new Date().toISOString(),
+    durationSeconds: Math.round((Date.now() - session.startedAt) / 1000),
+  };
   profile.sessions = [...profile.sessions, result].slice(-100);
   saveProfile();
   const finished = session;
@@ -383,10 +417,10 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("hashchange", render);
 
-// All personal data stays in localStorage. Export/import provides a portable backup.
 const modal = $("#settingsModal");
 function openSettings() {
   updateStorageSummary();
+  updateSyncUI();
   $("#storageStatus").textContent = "";
   modal.hidden = false;
 }
@@ -396,10 +430,82 @@ $("#closeSettings").addEventListener("click", () => { modal.hidden = true; });
 modal.addEventListener("click", (event) => { if (event.target === modal) modal.hidden = true; });
 
 function updateStorageSummary() {
+  if (!$("#storageSummary")) return;
   const stats = getStats();
   $("#storageSummary").textContent = `${stats.seen.toLocaleString("en-GB")} question${stats.seen === 1 ? "" : "s"} · ${profile.sessions.length} session${profile.sessions.length === 1 ? "" : "s"}`;
   $("#lastSaved").textContent = profile.updatedAt ? new Date(profile.updatedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "Not saved yet";
 }
+
+function updateSyncUI(nextState = syncState) {
+  syncState = { ...syncState, ...nextState };
+  const signedIn = Boolean(syncState.user);
+  const statusTitles = {
+    unconfigured: "Cloud connection pending",
+    local: "Saved on this device",
+    connecting: "Connecting cloud sync",
+    syncing: "Syncing progress",
+    pending: "Cloud update queued",
+    synced: "Synced across devices",
+    offline: "Available offline",
+    error: "Device copy is safe",
+    "email-sent": "Check your email",
+  };
+  const title = statusTitles[syncState.status] || "Saved on this device";
+  const detail = syncState.message || (signedIn
+    ? "Your progress is shared with your signed-in devices."
+    : "Sign in to share progress between devices.");
+
+  $("#syncLabel").textContent = signedIn
+    ? syncState.status === "synced" ? "Synced across devices" : "Cloud sync active"
+    : syncState.status === "email-sent" ? "Check your email" : "Saved on this device";
+  $("#cloudSyncTitle").textContent = title;
+  $("#cloudSyncDetail").textContent = detail;
+  $("#syncDot").dataset.status = syncState.status;
+  $("#syncSignInForm").hidden = signedIn || !syncState.configured;
+  $("#syncAccount").hidden = !signedIn;
+  $("#syncEmailLabel").textContent = syncState.user?.email || "Signed-in account";
+  $("#syncNow").disabled = !signedIn || syncState.status === "syncing";
+  $("#signOutSync").disabled = syncState.status === "syncing";
+  $("#syncStatus").textContent = syncState.status === "unconfigured"
+    ? "Finish the one-time Supabase connection to enable sign-in."
+    : syncState.status === "error" && syncState.error
+      ? `${detail} ${syncState.error}`
+      : "";
+  $("#resetData").textContent = signedIn ? "Erase progress on all synced devices" : "Erase all progress on this device";
+}
+
+$("#syncSignInForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const email = $("#syncEmail").value.trim();
+  if (!email) return;
+  const button = $("#sendSignInLink");
+  button.disabled = true;
+  $("#syncStatus").textContent = "";
+  try {
+    await syncController.requestMagicLink(email);
+  } catch (error) {
+    $("#syncStatus").textContent = error.message || "The sign-in email could not be sent.";
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$("#syncNow").addEventListener("click", async () => {
+  $("#syncNow").disabled = true;
+  await syncController?.syncNow();
+  updateSyncUI(syncController?.getState());
+});
+
+$("#signOutSync").addEventListener("click", async () => {
+  $("#signOutSync").disabled = true;
+  try {
+    await syncController?.signOut();
+  } catch (error) {
+    $("#syncStatus").textContent = error.message || "Could not sign out.";
+  } finally {
+    $("#signOutSync").disabled = false;
+  }
+});
 
 $("#exportData").addEventListener("click", () => {
   const backup = { app: "RoadReady Portugal", version: 1, exportedAt: new Date().toISOString(), profile };
@@ -424,7 +530,7 @@ $("#importFile").addEventListener("change", async (event) => {
     const parsed = JSON.parse(await file.text());
     const incoming = parsed.profile || parsed;
     if (!incoming || typeof incoming.questionProgress !== "object" || !Array.isArray(incoming.sessions)) throw new Error("This is not a valid RoadReady backup.");
-    profile = { ...defaultProfile(), ...incoming, questionProgress: { ...incoming.questionProgress }, sessions: incoming.sessions.slice(-100) };
+    profile = normaliseProfile(incoming);
     saveProfile();
     updateStorageSummary();
     render();
@@ -436,20 +542,28 @@ $("#importFile").addEventListener("change", async (event) => {
   }
 });
 
-$("#resetData").addEventListener("click", () => {
-  if (!confirm("Erase all RoadReady progress stored in this browser? This cannot be undone without a backup.")) return;
+$("#resetData").addEventListener("click", async () => {
+  const isSynced = Boolean(syncState.user);
+  const prompt = isSynced
+    ? "Erase all RoadReady progress on this device and in your synced cloud profile? This cannot be undone without a backup."
+    : "Erase all RoadReady progress stored in this browser? This cannot be undone without a backup.";
+  if (!confirm(prompt)) return;
   localStorage.removeItem(PROFILE_KEY);
-  localStorage.removeItem("roadready-supabase");
   profile = defaultProfile();
   saveProfile();
+  if (isSynced) await syncController?.syncNow();
   modal.hidden = true;
   render();
-  showToast("All local progress was erased.");
+  showToast(isSynced ? "Progress was erased on synced devices." : "All local progress was erased.");
 });
-
-try { localStorage.removeItem("roadready-supabase"); }
-catch { /* Storage may be unavailable in strict privacy modes. */ }
 
 main.innerHTML = `<div class="page"><div class="skeleton" style="height:44px;width:310px;margin-bottom:30px"></div><div class="hero-grid"><div class="skeleton" style="height:278px"></div><div class="skeleton" style="height:278px"></div></div></div>`;
 await loadCorpus();
 render();
+syncController = createSyncController({
+  getProfile: () => profile,
+  applyProfile: applySyncedProfile,
+  onStateChange: updateSyncUI,
+});
+updateSyncUI(syncController.getState());
+void syncController.initialize();

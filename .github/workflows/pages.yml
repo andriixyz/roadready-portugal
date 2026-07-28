@@ -27,6 +27,9 @@ jobs:
       - name: Validate question data
         run: npm run check
 
+      - name: Validate cloud merge behaviour
+        run: npm run check:sync
+
       - name: Build static site
         run: npm run build
 

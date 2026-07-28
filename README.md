@@ -19,11 +19,21 @@ Open `http://localhost:4173`.
 
 The app clearly distinguishes official IMT questions from the non-official study answer key. IMT publishes 14 driver PDF groups but does not publish the official solutions.
 
-## Private local storage
+## Progress storage and cross-device sync
 
-All personal information stays in the browser's `localStorage`: answer history, spaced-repetition dates, mock results, language preference and study statistics. The app sends no personal data to a backend and contains no database credentials.
+The app is local-first: answer history, spaced-repetition dates, mock results, language preference and study statistics are saved to `localStorage` immediately and remain available offline.
 
-Use **Your profile → Export backup** to download progress as JSON. Import that file to restore progress after changing devices or clearing browser storage. Keep using the same browser and GitHub Pages URL; private/incognito browsing does not preserve data reliably.
+When signed in, the local profile is merged into a private Supabase row and shared with other signed-in devices. Use **Your profile → Export backup** for an independent JSON backup.
+
+### One-time Supabase setup
+
+1. Reset any previously shared database password in **Supabase Dashboard → Database → Settings**.
+2. Run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL Editor.
+3. In **Authentication → URL Configuration**, set the Site URL to `https://andriixyz.github.io/roadready-portugal/` and add the same address as an allowed redirect URL.
+4. Copy the project's browser-safe publishable key into `supabase-config.js`. Never put the database password or a `service_role`/secret key in this repository.
+5. Deploy, sign in once with your email, and then disable new-user signups if this should remain a single-user cloud account.
+
+The publishable key and project URL are intentionally visible in the static site. Row Level Security restricts every profile row to its authenticated owner.
 
 ## Deploy to GitHub Pages
 

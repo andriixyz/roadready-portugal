@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>RoadReady — Portugal Category B</title>
-    <link rel="stylesheet" href="styles.css?v=20260714-3" />
+    <link rel="stylesheet" href="styles.css?v=20260728-1" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -65,9 +65,31 @@
     <div class="modal-backdrop" id="settingsModal" hidden>
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <button class="icon-button modal-close" id="closeSettings" aria-label="Close settings">×</button>
-        <span class="eyebrow">Private to this device</span>
+        <span class="eyebrow">Local-first cloud sync</span>
         <h2 id="settingsTitle">Your study data</h2>
-        <p class="muted">Your answers, review schedule, mock results and preferences stay in this browser. Nothing is sent to a server.</p>
+        <p class="muted">Your answers stay available on this device, even offline. Sign in to keep the same progress on your phone and computer.</p>
+        <div class="sync-panel">
+          <div class="sync-state">
+            <span class="sync-dot" id="syncDot" aria-hidden="true"></span>
+            <span><strong id="cloudSyncTitle">Saved on this device</strong><small id="cloudSyncDetail">Connect cloud sync to share progress between devices.</small></span>
+          </div>
+          <form class="settings-form sync-auth-form" id="syncSignInForm">
+            <label for="syncEmail">Your email
+              <input id="syncEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required />
+            </label>
+            <button class="button button-primary" id="sendSignInLink" type="submit">Email me a sign-in link</button>
+            <small>Open the link on the device you want to connect. No password is required.</small>
+          </form>
+          <div class="sync-account" id="syncAccount" hidden>
+            <span>Signed in as</span>
+            <strong id="syncEmailLabel">—</strong>
+            <div class="sync-account-actions">
+              <button class="button button-primary" id="syncNow" type="button">Sync now</button>
+              <button class="button button-ghost" id="signOutSync" type="button">Sign out</button>
+            </div>
+          </div>
+          <p class="form-status" id="syncStatus" aria-live="polite"></p>
+        </div>
         <div class="storage-summary">
           <div><span>Stored progress</span><strong id="storageSummary">—</strong></div>
           <div><span>Last saved</span><strong id="lastSaved">—</strong></div>
@@ -77,13 +99,13 @@
           <button class="data-action" id="importData" type="button"><span>↑</span><strong>Import backup</strong><small>Restore progress on this device</small></button>
         </div>
         <input id="importFile" type="file" accept="application/json,.json" hidden />
-        <div class="local-note"><strong>Using this on your phone?</strong><span>Keep using the same browser and site address. Private or incognito tabs erase data when closed.</span></div>
-        <button class="button danger-button" id="resetData" type="button">Erase all progress on this device</button>
+        <div class="local-note"><strong>Offline-safe</strong><span>New answers are saved here first, then synced when you are online. Export remains available as an independent backup.</span></div>
+        <button class="button danger-button" id="resetData" type="button">Erase all progress</button>
         <p class="form-status" id="storageStatus" aria-live="polite"></p>
       </section>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="app.js?v=20260714-3"></script>
+    <script type="module" src="app.js?v=20260728-1"></script>
   </body>
 </html>
