@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="English-first preparation for the Portuguese IMT Category B theory exam." />
+    <meta name="theme-color" content="#245e46" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>RoadReady — Portugal Category B</title>
+    <link rel="stylesheet" href="styles.css?v=20260714-3" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#dashboard" aria-label="RoadReady home">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+          <span>RoadReady</span>
+        </a>
+
+        <nav class="main-nav" aria-label="Main navigation">
+          <a class="nav-link active" href="#dashboard" data-route="dashboard">
+            <svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/></svg>
+            Dashboard
+          </a>
+          <a class="nav-link" href="#practice" data-route="practice">
+            <svg viewBox="0 0 24 24"><path d="M7 3h10v2h3v16H4V5h3V3Zm2 2v2h6V5H9Zm-1 7h8v-2H8v2Zm0 4h8v-2H8v2Z"/></svg>
+            Practice
+          </a>
+          <a class="nav-link" href="#progress" data-route="progress">
+            <svg viewBox="0 0 24 24"><path d="M5 9h3v10H5V9Zm6-5h3v15h-3V4Zm6 8h3v7h-3v-7Z"/></svg>
+            Progress
+          </a>
+          <a class="nav-link" href="#sources" data-route="sources">
+            <svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6V2Zm8 2v4h4l-4-4ZM9 13h8v-2H9v2Zm0 4h8v-2H9v2Z"/></svg>
+            Sources
+          </a>
+        </nav>
+
+        <div class="sidebar-card">
+          <div class="sidebar-card-icon">B</div>
+          <div>
+            <strong>Category B</strong>
+            <span>Portugal · English</span>
+          </div>
+        </div>
+
+        <button class="profile-button" id="openSettings" type="button">
+          <span class="avatar">A</span>
+          <span><strong>Your profile</strong><small id="syncLabel">Saved on this device</small></span>
+          <span aria-hidden="true">•••</span>
+        </button>
+      </aside>
+
+      <main class="main-content" id="mainContent" tabindex="-1"></main>
+
+      <nav class="mobile-nav" aria-label="Mobile navigation">
+        <a class="active" href="#dashboard" data-route="dashboard">Home</a>
+        <a href="#practice" data-route="practice">Practice</a>
+        <a href="#progress" data-route="progress">Progress</a>
+        <button id="mobileSettings" type="button">Settings</button>
+      </nav>
+    </div>
+
+    <div class="modal-backdrop" id="settingsModal" hidden>
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <button class="icon-button modal-close" id="closeSettings" aria-label="Close settings">×</button>
+        <span class="eyebrow">Private to this device</span>
+        <h2 id="settingsTitle">Your study data</h2>
+        <p class="muted">Your answers, review schedule, mock results and preferences stay in this browser. Nothing is sent to a server.</p>
+        <div class="storage-summary">
+          <div><span>Stored progress</span><strong id="storageSummary">—</strong></div>
+          <div><span>Last saved</span><strong id="lastSaved">—</strong></div>
+        </div>
+        <div class="settings-actions-grid">
+          <button class="data-action" id="exportData" type="button"><span>↓</span><strong>Export backup</strong><small>Download your progress as JSON</small></button>
+          <button class="data-action" id="importData" type="button"><span>↑</span><strong>Import backup</strong><small>Restore progress on this device</small></button>
+        </div>
+        <input id="importFile" type="file" accept="application/json,.json" hidden />
+        <div class="local-note"><strong>Using this on your phone?</strong><span>Keep using the same browser and site address. Private or incognito tabs erase data when closed.</span></div>
+        <button class="button danger-button" id="resetData" type="button">Erase all progress on this device</button>
+        <p class="form-status" id="storageStatus" aria-live="polite"></p>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="app.js?v=20260714-3"></script>
+  </body>
+</html>
