@@ -8,6 +8,7 @@
     "build": "node scripts/build.mjs",
     "scrape": "node scripts/scrape_questions.mjs",
     "translate": "node scripts/translate_questions.mjs",
+    "translate:ru": "node scripts/translate_russian.mjs",
     "explain": "node scripts/add_explanations.mjs",
     "check": "node scripts/check_data.mjs",
     "check:sync": "node scripts/check_sync.mjs"

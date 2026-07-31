@@ -6,6 +6,7 @@ const local = {
   updatedAt: "2026-07-28T10:00:00.000Z",
   dailyGoal: 30,
   language: "en",
+  uiLanguage: "ru",
   streak: 3,
   questionProgress: {
     q1: { correct: 2, wrong: 0, streak: 2, lastAnswer: "2026-07-28T09:00:00.000Z", nextReview: "2026-07-31T09:00:00.000Z" },
@@ -20,6 +21,7 @@ const cloud = {
   updatedAt: "2026-07-27T10:00:00.000Z",
   dailyGoal: 20,
   language: "pt",
+  uiLanguage: "en",
   streak: 5,
   questionProgress: {
     q1: { correct: 1, wrong: 1, streak: 0, lastAnswer: "2026-07-27T09:00:00.000Z", nextReview: "2026-07-27T09:00:00.000Z" },
@@ -35,6 +37,7 @@ assert.equal(merged.startedAt, cloud.startedAt);
 assert.equal(merged.updatedAt, local.updatedAt);
 assert.equal(merged.dailyGoal, local.dailyGoal);
 assert.equal(merged.language, local.language);
+assert.equal(merged.uiLanguage, local.uiLanguage);
 assert.equal(merged.streak, 5);
 assert.equal(merged.questionProgress.q1.correct, 2);
 assert.equal(merged.questionProgress.q1.wrong, 1);

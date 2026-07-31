@@ -73,6 +73,7 @@ export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
     updatedAt: updatedAtCandidates[0] || new Date().toISOString(),
     dailyGoal: laterValue(local.dailyGoal, cloud.dailyGoal, localUpdatedAt, cloudUpdatedAt) ?? 20,
     language: laterValue(local.language, cloud.language, localUpdatedAt, cloudUpdatedAt) || "en",
+    uiLanguage: laterValue(local.uiLanguage, cloud.uiLanguage, localUpdatedAt, cloudUpdatedAt) || "en",
     streak: Math.max(local.streak || 1, cloud.streak || 1),
     questionProgress,
     sessions: [...sessions.values()]
@@ -84,6 +85,7 @@ export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
         "updatedAt",
         "dailyGoal",
         "language",
+        "uiLanguage",
         "streak",
         "questionProgress",
         "sessions",
@@ -106,7 +108,7 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
     status: "local",
     user: null,
     lastSyncedAt: localStorage.getItem(LAST_SYNC_KEY),
-    message: "",
+    messageKey: "sync.signInShare",
   };
 
   const emit = (patch = {}) => {
@@ -118,7 +120,7 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
     user = null;
     emit({
       status: navigator.onLine ? "local" : "offline",
-      message: "Sign in to share progress between your devices.",
+      messageKey: navigator.onLine ? "sync.signInShare" : "sync.offlineSaved",
     });
   };
 
@@ -126,12 +128,12 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
     if (!state.configured) {
       emit({
         status: "unconfigured",
-        message: "Cloud sync is not connected yet. Your progress is still safe on this device.",
+        messageKey: "sync.notConfigured",
       });
       return state;
     }
 
-    emit({ status: "connecting", message: "Connecting securely…" });
+    emit({ status: "connecting", messageKey: "sync.connectingSecurely" });
     try {
       const { createClient } = await import(SDK_URL);
       client = createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.publishableKey, {
@@ -153,7 +155,7 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
           user = nextUser;
           emit({
             status: changedUser ? "connecting" : state.status,
-            message: changedUser ? "Loading your cloud progress…" : state.message,
+            messageKey: changedUser ? "sync.loadingCloud" : state.messageKey,
           });
           if (changedUser) await syncNow();
         });
@@ -168,9 +170,7 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
     } catch (error) {
       emit({
         status: navigator.onLine ? "error" : "offline",
-        message: navigator.onLine
-          ? "Cloud sync could not start. Your device copy is still available."
-          : "Offline. Changes will sync when your connection returns.",
+        messageKey: navigator.onLine ? "sync.startError" : "sync.offlineWillSync",
         error: error?.message,
       });
     }
@@ -186,7 +186,7 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
     if (!client) await initialize();
     if (!client) throw new Error("Cloud sync is not configured yet.");
 
-    emit({ status: "connecting", message: "Sending your secure sign-in link…" });
+    emit({ status: "connecting", messageKey: "sync.sendingLink" });
     const redirectUrl = `${location.origin}${location.pathname}`;
     const { error } = await client.auth.signInWithOtp({
       email: email.trim(),
@@ -196,12 +196,12 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
       },
     });
     if (error) {
-      emit({ status: "error", message: error.message });
+      emit({ status: "error", messageKey: "sync.signInSendError", error: error.message });
       throw error;
     }
     emit({
       status: "email-sent",
-      message: "Check your email and open the link on this device.",
+      messageKey: "sync.checkEmailDevice",
     });
   };
 
@@ -218,7 +218,7 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
       pending = true;
       emit({
         status: "offline",
-        message: "Offline. Changes are saved here and will sync automatically.",
+        messageKey: "sync.offlineAuto",
       });
       return false;
     }
@@ -229,7 +229,7 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
 
     syncing = true;
     pending = false;
-    emit({ status: "syncing", message: "Syncing progress…" });
+    emit({ status: "syncing", messageKey: "sync.syncing" });
     try {
       const { data, error: readError } = await client
         .from(TABLE)
@@ -258,7 +258,7 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
       emit({
         status: "synced",
         lastSyncedAt: syncedAt,
-        message: "Progress is up to date on all signed-in devices.",
+        messageKey: "sync.upToDate",
         error: null,
       });
     } catch (error) {
@@ -266,11 +266,7 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
       const setupMissing = error?.code === "42P01" || /roadready_profiles/i.test(error?.message || "");
       emit({
         status: navigator.onLine ? "error" : "offline",
-        message: setupMissing
-          ? "Cloud storage needs its one-time database setup."
-          : navigator.onLine
-            ? "Sync paused. Your changes are safe on this device."
-            : "Offline. Changes will sync when your connection returns.",
+        messageKey: setupMissing ? "sync.setupDatabase" : navigator.onLine ? "sync.paused" : "sync.offlineWillSync",
         error: error?.message,
       });
     } finally {
@@ -288,9 +284,7 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
     pending = true;
     emit({
       status: navigator.onLine ? "pending" : "offline",
-      message: navigator.onLine
-        ? "Saved here. Cloud update queued…"
-        : "Offline. Changes are saved here and will sync later.",
+      messageKey: navigator.onLine ? "sync.savedQueued" : "sync.savedLater",
     });
     clearTimeout(syncTimer);
     if (navigator.onLine) syncTimer = setTimeout(syncNow, SYNC_DELAY_MS);
@@ -310,11 +304,11 @@ export function createSyncController({ getProfile, applyProfile, onStateChange }
 
   window.addEventListener("online", () => {
     if (user) syncNow();
-    else emit({ status: "local", message: "Sign in to share progress between your devices." });
+    else emit({ status: "local", messageKey: "sync.signInShare" });
   });
   window.addEventListener("offline", () => emit({
     status: "offline",
-    message: "Offline. Changes are saved on this device.",
+    messageKey: "sync.offlineSaved",
   }));
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && user && navigator.onLine) syncNow();

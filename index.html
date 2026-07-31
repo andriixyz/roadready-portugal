@@ -3,109 +3,119 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="English-first preparation for the Portuguese IMT Category B theory exam." />
+    <meta name="description" content="English and Russian preparation for the Portuguese IMT Category B theory exam." />
     <meta name="theme-color" content="#245e46" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>RoadReady — Portugal Category B</title>
-    <link rel="stylesheet" href="styles.css?v=20260728-1" />
+    <link rel="stylesheet" href="styles.css?v=20260731-1" />
   </head>
   <body>
     <div id="app" class="app-shell">
       <aside class="sidebar">
-        <a class="brand" href="#dashboard" aria-label="RoadReady home">
+        <a class="brand" href="#dashboard" aria-label="RoadReady home" data-i18n-aria="aria.home">
           <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
           <span>RoadReady</span>
         </a>
 
-        <nav class="main-nav" aria-label="Main navigation">
+        <nav class="main-nav" aria-label="Main navigation" data-i18n-aria="aria.mainNavigation">
           <a class="nav-link active" href="#dashboard" data-route="dashboard">
             <svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/></svg>
-            Dashboard
+            <span data-i18n="nav.dashboard">Dashboard</span>
           </a>
           <a class="nav-link" href="#practice" data-route="practice">
             <svg viewBox="0 0 24 24"><path d="M7 3h10v2h3v16H4V5h3V3Zm2 2v2h6V5H9Zm-1 7h8v-2H8v2Zm0 4h8v-2H8v2Z"/></svg>
-            Practice
+            <span data-i18n="nav.practice">Practice</span>
           </a>
           <a class="nav-link" href="#progress" data-route="progress">
             <svg viewBox="0 0 24 24"><path d="M5 9h3v10H5V9Zm6-5h3v15h-3V4Zm6 8h3v7h-3v-7Z"/></svg>
-            Progress
+            <span data-i18n="nav.progress">Progress</span>
           </a>
           <a class="nav-link" href="#sources" data-route="sources">
             <svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6V2Zm8 2v4h4l-4-4ZM9 13h8v-2H9v2Zm0 4h8v-2H9v2Z"/></svg>
-            Sources
+            <span data-i18n="nav.sources">Sources</span>
           </a>
         </nav>
 
         <div class="sidebar-card">
           <div class="sidebar-card-icon">B</div>
           <div>
-            <strong>Category B</strong>
-            <span>Portugal · English</span>
+            <strong data-i18n="chrome.category">Category B</strong>
+            <span id="sidebarLanguageLabel" data-i18n="chrome.portugalLanguage">Portugal · English</span>
+          </div>
+          <div class="compact-language-toggle" role="group" aria-label="App language" data-i18n-aria="aria.interfaceLanguage">
+            <button type="button" data-ui-lang="en">EN</button><button type="button" data-ui-lang="ru">RU</button>
           </div>
         </div>
 
         <button class="profile-button" id="openSettings" type="button">
           <span class="avatar">A</span>
-          <span><strong>Your profile</strong><small id="syncLabel">Saved on this device</small></span>
+          <span><strong data-i18n="chrome.profile">Your profile</strong><small id="syncLabel" data-i18n="settings.savedLocal">Saved on this device</small></span>
           <span aria-hidden="true">•••</span>
         </button>
       </aside>
 
       <main class="main-content" id="mainContent" tabindex="-1"></main>
 
-      <nav class="mobile-nav" aria-label="Mobile navigation">
-        <a class="active" href="#dashboard" data-route="dashboard">Home</a>
-        <a href="#practice" data-route="practice">Practice</a>
-        <a href="#progress" data-route="progress">Progress</a>
-        <button id="mobileSettings" type="button">Settings</button>
+      <nav class="mobile-nav" aria-label="Mobile navigation" data-i18n-aria="aria.mobileNavigation">
+        <a class="active" href="#dashboard" data-route="dashboard" data-i18n="nav.home">Home</a>
+        <a href="#practice" data-route="practice" data-i18n="nav.practice">Practice</a>
+        <a href="#progress" data-route="progress" data-i18n="nav.progress">Progress</a>
+        <button id="mobileSettings" type="button" data-i18n="nav.settings">Settings</button>
       </nav>
     </div>
 
     <div class="modal-backdrop" id="settingsModal" hidden>
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-        <button class="icon-button modal-close" id="closeSettings" aria-label="Close settings">×</button>
-        <span class="eyebrow">Local-first cloud sync</span>
-        <h2 id="settingsTitle">Your study data</h2>
-        <p class="muted">Your answers stay available on this device, even offline. Sign in to keep the same progress on your phone and computer.</p>
+        <button class="icon-button modal-close" id="closeSettings" aria-label="Close settings" data-i18n-aria="aria.closeSettings">×</button>
+        <span class="eyebrow" data-i18n="settings.eyebrow">Local-first cloud sync</span>
+        <h2 id="settingsTitle" data-i18n="settings.title">Your study data</h2>
+        <p class="muted" data-i18n="settings.description">Your answers stay available on this device, even offline. Sign in to keep the same progress on your phone and computer.</p>
+        <div class="language-settings">
+          <div><strong data-i18n="language.heading">App language</strong><small data-i18n="language.description">The interface, questions, answers and explanations follow your selected language.</small></div>
+          <div class="settings-language-toggle" role="group" aria-label="App language" data-i18n-aria="aria.interfaceLanguage">
+            <button type="button" data-ui-lang="en" data-i18n="language.english">English</button>
+            <button type="button" data-ui-lang="ru" data-i18n="language.russian">Русский</button>
+          </div>
+        </div>
         <div class="sync-panel">
           <div class="sync-state">
             <span class="sync-dot" id="syncDot" aria-hidden="true"></span>
-            <span><strong id="cloudSyncTitle">Saved on this device</strong><small id="cloudSyncDetail">Connect cloud sync to share progress between devices.</small></span>
+            <span><strong id="cloudSyncTitle" data-i18n="settings.savedLocal">Saved on this device</strong><small id="cloudSyncDetail" data-i18n="settings.connectCloud">Sign in to share progress between your devices.</small></span>
           </div>
           <form class="settings-form sync-auth-form" id="syncSignInForm">
-            <label for="syncEmail">Your email
-              <input id="syncEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required />
+            <label for="syncEmail"><span data-i18n="settings.email">Your email</span>
+              <input id="syncEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" data-i18n-placeholder="settings.emailPlaceholder" required />
             </label>
-            <button class="button button-primary" id="sendSignInLink" type="submit">Email me a sign-in link</button>
-            <small>Open the link on the device you want to connect. No password is required.</small>
+            <button class="button button-primary" id="sendSignInLink" type="submit" data-i18n="settings.emailLink">Email me a sign-in link</button>
+            <small data-i18n="settings.emailHelp">Open the link on the device you want to connect. No password is required.</small>
           </form>
           <div class="sync-account" id="syncAccount" hidden>
-            <span>Signed in as</span>
+            <span data-i18n="settings.signedInAs">Signed in as</span>
             <strong id="syncEmailLabel">—</strong>
             <div class="sync-account-actions">
-              <button class="button button-primary" id="syncNow" type="button">Sync now</button>
-              <button class="button button-ghost" id="signOutSync" type="button">Sign out</button>
+              <button class="button button-primary" id="syncNow" type="button" data-i18n="settings.syncNow">Sync now</button>
+              <button class="button button-ghost" id="signOutSync" type="button" data-i18n="settings.signOut">Sign out</button>
             </div>
           </div>
           <p class="form-status" id="syncStatus" aria-live="polite"></p>
         </div>
         <div class="storage-summary">
-          <div><span>Stored progress</span><strong id="storageSummary">—</strong></div>
-          <div><span>Last saved</span><strong id="lastSaved">—</strong></div>
+          <div><span data-i18n="settings.storedProgress">Stored progress</span><strong id="storageSummary">—</strong></div>
+          <div><span data-i18n="settings.lastSaved">Last saved</span><strong id="lastSaved">—</strong></div>
         </div>
         <div class="settings-actions-grid">
-          <button class="data-action" id="exportData" type="button"><span>↓</span><strong>Export backup</strong><small>Download your progress as JSON</small></button>
-          <button class="data-action" id="importData" type="button"><span>↑</span><strong>Import backup</strong><small>Restore progress on this device</small></button>
+          <button class="data-action" id="exportData" type="button"><span>↓</span><strong data-i18n="settings.export">Export backup</strong><small data-i18n="settings.exportHelp">Download your progress as JSON</small></button>
+          <button class="data-action" id="importData" type="button"><span>↑</span><strong data-i18n="settings.import">Import backup</strong><small data-i18n="settings.importHelp">Restore progress on this device</small></button>
         </div>
         <input id="importFile" type="file" accept="application/json,.json" hidden />
-        <div class="local-note"><strong>Offline-safe</strong><span>New answers are saved here first, then synced when you are online. Export remains available as an independent backup.</span></div>
-        <button class="button danger-button" id="resetData" type="button">Erase all progress</button>
+        <div class="local-note"><strong data-i18n="settings.offlineSafe">Offline-safe</strong><span data-i18n="settings.offlineHelp">New answers are saved here first, then synced when you are online. Export remains available as an independent backup.</span></div>
+        <button class="button danger-button" id="resetData" type="button" data-i18n="settings.eraseLocal">Erase all progress on this device</button>
         <p class="form-status" id="storageStatus" aria-live="polite"></p>
       </section>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="app.js?v=20260728-1"></script>
+    <script type="module" src="app.js?v=20260731-1"></script>
   </body>
 </html>

@@ -6,7 +6,7 @@ const dist = new URL("../dist/", import.meta.url);
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 
-for (const file of ["index.html", "app.js", "sync.js", "supabase-config.js", "styles.css", ".nojekyll"]) {
+for (const file of ["index.html", "app.js", "i18n.js", "sync.js", "supabase-config.js", "styles.css", ".nojekyll"]) {
   await cp(new URL(file, root), new URL(file, dist));
 }
 

@@ -1,6 +1,6 @@
 # RoadReady Portugal
 
-English-first study app for the Portuguese IMT Category B theory exam.
+English- and Russian-language study app for the Portuguese IMT Category B theory exam, with the Portuguese source wording available for every question.
 
 ## Run locally
 
@@ -12,12 +12,15 @@ Open `http://localhost:4173`.
 
 ## Data pipeline
 
-- `npm run scrape` builds the Category B corpus from public question pages that identify IMT questions and expose a study answer key.
+- `npm run scrape` builds the Category B corpus from public Bom Condutor study pages and preserves their source URLs and non-official study answer key.
 - `npm run translate` adds an English machine translation while preserving every Portuguese source string.
-- `npm run explain` regenerates a concise bilingual study note for every correct answer.
-- `npm run check` validates IDs, bilingual fields, choices, and answer keys.
+- `npm run explain` regenerates a concise English/Portuguese study note for every correct answer.
+- `npm run translate:ru` builds the compact Russian overlay. It resumes interrupted runs, validates the source hash and answer keys, and applies reviewed road-terminology corrections and Russian topic guidance.
+- `npm run check` validates all 3,910 IDs, the English/Portuguese corpus, 18,931 Russian fields, answer keys, and every interface translation key.
 
-The app clearly distinguishes official IMT questions from the non-official study answer key. IMT publishes 14 driver PDF groups but does not publish the official solutions.
+The Russian overlay is loaded only when Russian is selected, which keeps the initial mobile download smaller. The app language and the question language are stored separately: the full interface supports English and Russian, while each question can be viewed in English, Russian, or the Portuguese original.
+
+The app links separately to the 14 driver PDF groups published by IMT and clearly distinguishes those documents from the Bom Condutor study corpus and its non-official answer key. IMT does not publish the official solutions.
 
 ## Progress storage and cross-device sync
 

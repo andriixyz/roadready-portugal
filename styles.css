@@ -79,7 +79,8 @@ a { color: inherit; }
 .nav-link svg { width: 19px; height: 19px; fill: currentColor; }
 .sidebar-card {
   margin-top: auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 12px;
   padding: 14px;
@@ -90,6 +91,9 @@ a { color: inherit; }
 .sidebar-card-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--green); color: white; font-weight: 800; }
 .sidebar-card strong, .sidebar-card span { display: block; }
 .sidebar-card span { color: var(--muted); margin-top: 3px; font-size: 11px; }
+.compact-language-toggle { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 2px; padding: 3px; border-radius: 10px; background: rgba(255,255,255,.66); }
+.compact-language-toggle button, .settings-language-toggle button { min-height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 800; cursor: pointer; transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease; }
+.compact-language-toggle button.active, .settings-language-toggle button.active { background: var(--surface); color: var(--green); box-shadow: 0 2px 8px rgba(27,52,39,.08); }
 .profile-button {
   margin-top: 16px;
   padding: 10px 5px;
@@ -277,6 +281,11 @@ a { color: inherit; }
 .modal h2 { margin: 8px 0 10px; font: 500 30px Georgia, serif; }
 .muted { color: var(--muted); line-height: 1.6; font-size: 12px; }
 .modal-close { position: absolute; top: 17px; right: 17px; }
+.language-settings { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; margin-top: 18px; padding: 15px; border-radius: 15px; background: var(--green-2); }
+.language-settings strong, .language-settings small { display: block; }
+.language-settings strong { font-size: 12px; }
+.language-settings small { max-width: 340px; margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.settings-language-toggle { display: grid; grid-template-columns: 1fr 1fr; min-width: 176px; gap: 4px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,.55); }
 .settings-form { display: grid; gap: 14px; margin-top: 24px; }
 .settings-form label { display: grid; gap: 7px; font-size: 10px; color: var(--muted); font-weight: 750; }
 .settings-form input { width: 100%; border: 1px solid var(--line); border-radius: 11px; padding: 12px 13px; outline: 0; background: white; color: var(--ink); }
@@ -373,6 +382,8 @@ a { color: inherit; }
   .field-row { grid-template-columns: 1fr; }
   .storage-summary, .settings-actions-grid { grid-template-columns: 1fr; }
   .sync-account-actions { grid-template-columns: 1fr; }
+  .language-settings { grid-template-columns: 1fr; }
+  .settings-language-toggle { width: 100%; }
   .form-actions { flex-direction: column-reverse; }
   .form-actions .button { width: 100%; }
 }
