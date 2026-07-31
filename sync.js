@@ -73,7 +73,7 @@ export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
     updatedAt: updatedAtCandidates[0] || new Date().toISOString(),
     dailyGoal: laterValue(local.dailyGoal, cloud.dailyGoal, localUpdatedAt, cloudUpdatedAt) ?? 20,
     language: laterValue(local.language, cloud.language, localUpdatedAt, cloudUpdatedAt) || "en",
-    uiLanguage: laterValue(local.uiLanguage, cloud.uiLanguage, localUpdatedAt, cloudUpdatedAt) || "en",
+    uiLanguage: laterValue(local.uiLanguage, cloud.uiLanguage, localUpdatedAt, cloudUpdatedAt) || local.uiLanguage || cloud.uiLanguage || "en",
     streak: Math.max(local.streak || 1, cloud.streak || 1),
     questionProgress,
     sessions: [...sessions.values()]

@@ -45,4 +45,10 @@ assert.equal(merged.questionProgress.q1.nextReview, local.questionProgress.q1.ne
 assert.deepEqual(Object.keys(merged.questionProgress).sort(), ["q1", "q2"]);
 assert.deepEqual(merged.sessions.map((item) => item.id), ["cloud-session", "local-session"]);
 
+const legacyNewer = { ...local, updatedAt: "2026-07-29T10:00:00.000Z" };
+delete legacyNewer.uiLanguage;
+const olderRussian = { ...cloud, uiLanguage: "ru" };
+const migrated = mergeProfiles(legacyNewer, olderRussian);
+assert.equal(migrated.uiLanguage, "ru");
+
 process.stdout.write("Sync merge checks passed.\n");

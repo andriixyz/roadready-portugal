@@ -1,5 +1,5 @@
-import { createSyncController } from "./sync.js?v=20260731-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20260731-1";
+import { createSyncController } from "./sync.js?v=20260731-2";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20260731-2";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -513,19 +513,26 @@ window.addEventListener("hashchange", render);
 const modal = $("#settingsModal");
 async function setUILanguage(language) {
   const normalized = normalizeLanguage(language);
-  if (normalized === "ru") {
-    showToast(t("quiz.russianLoading"));
-    try { await ensureRussianCorpus(); }
-    catch { showToast(t("quiz.russianLoadError")); return; }
-  }
   profile.uiLanguage = normalized;
-  profile.language = normalized;
-  if (session) session.questionLanguage = normalized;
+  if (normalized !== "ru") {
+    profile.language = normalized;
+    if (session) session.questionLanguage = normalized;
+  }
   saveProfile();
   applyStaticTranslations();
   updateSyncUI();
   updateStorageSummary();
   render();
+  if (normalized === "ru") {
+    showToast(t("quiz.russianLoading"));
+    try { await ensureRussianCorpus(); }
+    catch { showToast(t("quiz.russianLoadError")); return; }
+    profile.language = "ru";
+    if (session) session.questionLanguage = "ru";
+    saveProfile();
+    updateStorageSummary();
+    render();
+  }
 }
 
 function openSettings() {
