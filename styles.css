@@ -228,7 +228,8 @@ a { color: inherit; }
 .quiz-hint { color: var(--muted); font-size: 9px; }
 .question-capture-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
 .question-capture-actions .button { min-height: 44px; font-size: 11px; }
-.question-capture-actions [hidden] { display: none; }
+.question-capture-actions a.button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.question-capture-actions .button[hidden] { display: none; }
 .capture-status { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .capture-status:empty { display: none; }
 .feedback { margin-top: 15px; padding: 15px 16px; border: 1px solid #cfe0d2; background: #f0f5f0; border-radius: 13px; font-size: 11px; line-height: 1.5; animation: feedbackIn 220ms ease both; }

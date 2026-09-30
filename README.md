@@ -15,7 +15,9 @@ Use a local HTTP server or the deployed site, not a `file://` URL. The first ima
 
 ## Copy a question into ChatGPT
 
-During a quiz, press **Copy image for ChatGPT** and paste into your ChatGPT conversation. It copies one PNG containing the full road image, the current question wording, and all answer options in the selected question language. Correct-answer highlights, explanations, progress, and the private device link are not included.
+During a quiz, press **Ask ChatGPT** to copy the screenshot and open ChatGPT in a new tab, then paste it into the composer. If the browser blocks the new tab, use the **Open ChatGPT** link shown below the button. The image is not attached or sent automatically. **Copy image for ChatGPT** remains available if you want to paste into an existing chat instead.
+
+Both buttons copy one PNG containing the full road image, the current question wording, and all answer options in the selected question language. Correct-answer highlights, explanations, progress, and the private device link are not included.
 
 Image clipboard access needs a supported browser and HTTPS (or localhost). If it is unavailable or denied, **Download question image** lets you save the same PNG and attach it manually. Question images are bundled with the static deployment to avoid cross-origin canvas restrictions; no screenshot proxy or ChatGPT API account is used.
 

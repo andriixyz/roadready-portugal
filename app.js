@@ -1,5 +1,5 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20260930-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20260930-2";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20260930-3";
 import { createQuestionImage, getQuestionImagePath } from "./question-capture.js?v=20260930-2";
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -371,8 +371,8 @@ function renderQuestion() {
           }).join("")}</div>
           ${session.checked && session.mode !== "exam" ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: q.correct })}</strong></div><p>${escapeHtml(explanation)}</p><small>${session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
           <div class="quiz-actions"><span class="quiz-hint">${t("quiz.keyboardHint")}</span><button class="button ${session.checked ? "button-primary" : "button-accent"}" id="quizPrimary" ${session.selected ? "" : "disabled"}>${session.mode === "exam" ? (session.index === session.questions.length - 1 ? t("quiz.finishExam") : t("quiz.next")) : session.checked ? (session.index === session.questions.length - 1 ? t("quiz.results") : t("quiz.continue")) : t("quiz.check")} →</button></div>
-          <div class="question-capture-actions"><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button></div>
-          <p class="capture-status" id="questionCaptureStatus" role="status"></p>
+          <div class="question-capture-actions"><button class="button button-primary" id="askChatGPT" type="button">${t("quiz.askChatGPT")} ↗</button><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button><a class="button button-ghost" id="chatGPTOpenLink" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" hidden>${t("quiz.openChatGPT")} ↗</a></div>
+          <p class="capture-status" id="questionCaptureStatus" role="status">${t("quiz.chatGPTHint")}</p>
         </div>
       </article>
     </div>`;
@@ -390,36 +390,52 @@ function renderQuestion() {
 }
 
 function bindQuestionCapture(question, language) {
-  const button = $("#copyQuestionImage"), downloadButton = $("#downloadQuestionImage"), status = $("#questionCaptureStatus");
+  const button = $("#copyQuestionImage"), askButton = $("#askChatGPT"), downloadButton = $("#downloadQuestionImage"), chatLink = $("#chatGPTOpenLink"), status = $("#questionCaptureStatus");
   let preparedBlob = null;
-  button.addEventListener("click", async () => {
+  const copyImage = async (openChatGPT = false) => {
+    const activeButton = openChatGPT ? askButton : button;
     button.disabled = true;
-    button.textContent = t("quiz.preparingImage");
+    askButton.disabled = true;
+    activeButton.textContent = t("quiz.preparingImage");
     status.textContent = "";
     downloadButton.hidden = true;
+    chatLink.hidden = true;
     const imagePromise = createQuestionImage(question, language, { heading: t("quiz.captureHeading", { id: question.sourceId }) });
     try {
       // Start the write in the click event. The promised PNG preserves Safari's
       // user activation while its full-size image is still loading.
       if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") throw new Error("Image clipboard unavailable");
       await navigator.clipboard.write([new ClipboardItem({ "image/png": imagePromise })]);
-      status.textContent = t("quiz.imageCopied");
-      showToast(t("quiz.imageCopied"));
+      if (openChatGPT) {
+        chatLink.hidden = false;
+        status.textContent = t("quiz.chatGPTPaste");
+        // No URL attachment API is used. The user pastes the copied PNG in
+        // ChatGPT. Keep a real link available if async popup opening is blocked.
+        try { window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer"); } catch { /* Use the visible fallback link. */ }
+      } else {
+        status.textContent = t("quiz.imageCopied");
+        showToast(t("quiz.imageCopied"));
+      }
     } catch {
       try {
         preparedBlob = await imagePromise;
         downloadButton.hidden = false;
+        chatLink.hidden = !openChatGPT;
         status.textContent = t("quiz.copyImageFallback");
       } catch {
         status.textContent = t("quiz.captureImageError");
       }
     } finally {
-      if (button.isConnected) {
+      if (button.isConnected && askButton.isConnected) {
         button.disabled = false;
+        askButton.disabled = false;
         button.textContent = `▣ ${t("quiz.copyForChatGPT")}`;
+        askButton.textContent = `${t("quiz.askChatGPT")} ↗`;
       }
     }
-  });
+  };
+  button.addEventListener("click", () => { void copyImage(); });
+  askButton.addEventListener("click", () => { void copyImage(true); });
   downloadButton.addEventListener("click", () => {
     if (!preparedBlob) return;
     const url = URL.createObjectURL(preparedBlob);
