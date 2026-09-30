@@ -5,10 +5,19 @@ English- and Russian-language study app for the Portuguese IMT Category B theory
 ## Run locally
 
 ```bash
+npm run images
 python3 -m http.server 4173
 ```
 
 Open `http://localhost:4173`.
+
+Use a local HTTP server or the deployed site, not a `file://` URL. The first image preparation downloads the public question pictures; subsequent runs reuse the local cache.
+
+## Copy a question into ChatGPT
+
+During a quiz, press **Copy image for ChatGPT** and paste into your ChatGPT conversation. It copies one PNG containing the full road image, the current question wording, and all answer options in the selected question language. Correct-answer highlights, explanations, progress, and the private device link are not included.
+
+Image clipboard access needs a supported browser and HTTPS (or localhost). If it is unavailable or denied, **Download question image** lets you save the same PNG and attach it manually. Question images are bundled with the static deployment to avoid cross-origin canvas restrictions; no screenshot proxy or ChatGPT API account is used.
 
 ## Data pipeline
 

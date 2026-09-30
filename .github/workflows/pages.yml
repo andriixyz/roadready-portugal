@@ -30,6 +30,15 @@ jobs:
       - name: Validate cloud merge behaviour
         run: npm run check:sync
 
+      - name: Validate question capture
+        run: npm run check:capture
+
+      - name: Cache public question images
+        uses: actions/cache@v4
+        with:
+          path: public/images/questions
+          key: question-images-v1-${{ hashFiles('public/data/questions-pt.json') }}
+
       - name: Build static site
         run: npm run build
 
