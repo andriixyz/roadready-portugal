@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>RoadReady — Portugal Category B</title>
-    <link rel="stylesheet" href="styles.css?v=20260731-1" />
+    <link rel="stylesheet" href="styles.css?v=20260930-1" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -70,7 +70,7 @@
         <button class="icon-button modal-close" id="closeSettings" aria-label="Close settings" data-i18n-aria="aria.closeSettings">×</button>
         <span class="eyebrow" data-i18n="settings.eyebrow">Local-first cloud sync</span>
         <h2 id="settingsTitle" data-i18n="settings.title">Your study data</h2>
-        <p class="muted" data-i18n="settings.description">Your answers stay available on this device, even offline. Sign in to keep the same progress on your phone and computer.</p>
+        <p class="muted" data-i18n="settings.description">No account needed. Your answers save automatically. Link your phone and computer once to share the same progress.</p>
         <div class="language-settings">
           <div><strong data-i18n="language.heading">App language</strong><small data-i18n="language.description">The interface, questions, answers and explanations follow your selected language.</small></div>
           <div class="settings-language-toggle" role="group" aria-label="App language" data-i18n-aria="aria.interfaceLanguage">
@@ -81,22 +81,22 @@
         <div class="sync-panel">
           <div class="sync-state">
             <span class="sync-dot" id="syncDot" aria-hidden="true"></span>
-            <span><strong id="cloudSyncTitle" data-i18n="settings.savedLocal">Saved on this device</strong><small id="cloudSyncDetail" data-i18n="settings.connectCloud">Sign in to share progress between your devices.</small></span>
+            <span><strong id="cloudSyncTitle" data-i18n="settings.savedLocal">Saved on this device</strong><small id="cloudSyncDetail" data-i18n="settings.connectCloud">Progress syncs automatically. No sign-in required.</small></span>
           </div>
-          <form class="settings-form sync-auth-form" id="syncSignInForm">
-            <label for="syncEmail"><span data-i18n="settings.email">Your email</span>
-              <input id="syncEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" data-i18n-placeholder="settings.emailPlaceholder" required />
-            </label>
-            <button class="button button-primary" id="sendSignInLink" type="submit" data-i18n="settings.emailLink">Email me a sign-in link</button>
-            <small data-i18n="settings.emailHelp">Open the link on the device you want to connect. No password is required.</small>
-          </form>
-          <div class="sync-account" id="syncAccount" hidden>
-            <span data-i18n="settings.signedInAs">Signed in as</span>
-            <strong id="syncEmailLabel">—</strong>
+          <div class="sync-account">
             <div class="sync-account-actions">
               <button class="button button-primary" id="syncNow" type="button" data-i18n="settings.syncNow">Sync now</button>
-              <button class="button button-ghost" id="signOutSync" type="button" data-i18n="settings.signOut">Sign out</button>
+              <button class="button button-ghost" id="linkDevice" type="button" data-i18n="settings.linkDevice">Link another device</button>
             </div>
+          </div>
+          <div class="device-link-panel" id="deviceLinkPanel" hidden>
+            <label for="deviceLink" data-i18n="settings.privateLink">Your private device link</label>
+            <input id="deviceLink" type="text" readonly autocomplete="off" spellcheck="false" />
+            <div class="sync-account-actions">
+              <button class="button button-primary" id="copyDeviceLink" type="button" data-i18n="settings.copyLink">Copy link</button>
+              <button class="button button-ghost" id="shareDeviceLink" type="button" data-i18n="settings.shareLink">Share to my device</button>
+            </div>
+            <small data-i18n="settings.privateLinkHelp">Open this link once on your other device. Keep it private: anyone with the link can read or change your study progress.</small>
           </div>
           <p class="form-status" id="syncStatus" aria-live="polite"></p>
         </div>
@@ -116,6 +116,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="app.js?v=20260731-2"></script>
+    <script type="module" src="app.js?v=20260930-1"></script>
   </body>
 </html>

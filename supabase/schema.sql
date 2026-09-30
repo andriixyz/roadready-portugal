@@ -1,4 +1,4 @@
--- RoadReady Portugal: one private, authenticated profile per user.
+-- Legacy email-auth storage. Kept for reference; use personal-sync.sql now.
 -- Run this once in the Supabase SQL Editor.
 
 create table if not exists public.roadready_profiles (

@@ -26,17 +26,25 @@ The app links separately to the 14 driver PDF groups published by IMT and clearl
 
 The app is local-first: answer history, spaced-repetition dates, mock results, language preference and study statistics are saved to `localStorage` immediately and remain available offline.
 
-When signed in, the local profile is merged into a private Supabase row and shared with other signed-in devices. Use **Your profile → Export backup** for an independent JSON backup.
+There is no sign-in or account. A random private device key is generated automatically and saved in this browser. Supabase stores a hash of that key and the study profile, not an email address or a password. Only possession of the private key allows reading or updating that profile.
+
+To connect your phone and Mac, open **Your profile → Link another device**, copy/share the private link, and open it once on the other device. The key is imported and immediately removed from the address bar. From then on both devices sync automatically on changes, reconnect, and return to the app. Keep this link private.
+
+Concurrent updates use revision checks; answer counters are tracked per device so offline answers can be combined without double-counting. Resetting progress creates a new history generation so older devices cannot restore erased results. Use **Export backup** for recovery; the backup includes the private key and must also be kept private.
 
 ### One-time Supabase setup
 
-1. Reset any previously shared database password in **Supabase Dashboard → Database → Settings**.
-2. Run [`supabase/schema.sql`](supabase/schema.sql) in the Supabase SQL Editor.
-3. In **Authentication → URL Configuration**, set the Site URL to `https://andriixyz.github.io/roadready-portugal/` and add the same address as an allowed redirect URL.
-4. Copy the project's browser-safe publishable key into `supabase-config.js`. Never put the database password or a `service_role`/secret key in this repository.
-5. Deploy, sign in once with your email, and then disable new-user signups if this should remain a single-user cloud account.
+1. Run [`supabase/personal-sync.sql`](supabase/personal-sync.sql) in the Supabase SQL Editor.
+2. Keep the browser-safe project URL and publishable key in `supabase-config.js`. Never put a device key, database password, or service-role/secret key in the repository.
+3. Deploy the app and open it on the device holding your existing progress. Link your second device using the private link.
 
-The publishable key and project URL are intentionally visible in the static site. Row Level Security restricts every profile row to its authenticated owner.
+No Authentication provider or redirect configuration is needed. The storage table is in the non-exposed `private` schema, has RLS enabled, and denies direct access to browser roles. The only exposed operations are key-scoped read/write functions. They cannot list profiles. Profile payloads are limited to 2 MiB and 100 sessions. The public publishable key is not the private device key.
+
+If a database password has ever been shared in chat or committed to a repository, rotate it yourself in the Supabase dashboard. This app does not need or use that password.
+
+This intentionally lightweight personal-app design allows visitors to create their own isolated random-key profile; it is not a public multi-user service with abuse prevention. Never weaken the table permissions to allow anonymous listing or unrestricted writes.
+
+The previous `public.roadready_profiles` table is left untouched for recovery. Existing browser progress migrates automatically; cloud-only legacy progress can be recovered through an old backup or the Supabase dashboard. `supabase/schema.sql` is retained only as the legacy auth schema.
 
 ## Deploy to GitHub Pages
 

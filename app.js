@@ -1,5 +1,5 @@
-import { createSyncController } from "./sync.js?v=20260731-2";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20260731-2";
+import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20260930-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20260930-1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -69,6 +69,7 @@ const defaultProfile = () => ({
   streak: 1,
 });
 const PROFILE_KEY = "roadready-profile";
+const deviceId = getDeviceId();
 
 let profile = loadProfile();
 let questions = [];
@@ -79,9 +80,9 @@ let syncController = null;
 let syncState = {
   configured: false,
   status: "local",
-  user: null,
+  hasSyncKey: false,
   lastSyncedAt: null,
-  messageKey: "sync.signInShare",
+  messageKey: "sync.localReady",
 };
 
 function normaliseProfile(value = {}) {
@@ -96,7 +97,10 @@ function normaliseProfile(value = {}) {
   };
 }
 function loadProfile() {
-  try { return normaliseProfile(JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}")); }
+  try {
+    const saved = localStorage.getItem(PROFILE_KEY);
+    return saved ? normaliseProfile(JSON.parse(saved)) : { ...defaultProfile(), updatedAt: null };
+  }
   catch { return defaultProfile(); }
 }
 function saveProfile({ sync = true } = {}) {
@@ -426,7 +430,7 @@ function recordQuestion(question, isCorrect) {
   const intervals = [1, 3, 7, 14, 30];
   const days = isCorrect ? intervals[Math.min(streak - 1, intervals.length - 1)] : 0;
   const nextReview = new Date(Date.now() + days * 86400000).toISOString();
-  profile.questionProgress[question.id] = { ...current, correct: current.correct + (isCorrect ? 1 : 0), wrong: current.wrong + (isCorrect ? 0 : 1), streak, lastAnswer: new Date().toISOString(), nextReview };
+  profile.questionProgress[question.id] = { ...incrementAnswerCounts(current, isCorrect, deviceId), streak, lastAnswer: new Date().toISOString(), nextReview };
   saveProfile();
 }
 
@@ -555,7 +559,7 @@ function updateStorageSummary() {
 
 function updateSyncUI(nextState = syncState) {
   syncState = { ...syncState, ...nextState };
-  const signedIn = Boolean(syncState.user);
+  const linked = Boolean(syncState.configured && syncState.hasSyncKey);
   const statusTitles = {
     unconfigured: "sync.unconfiguredTitle",
     local: "sync.localTitle",
@@ -565,42 +569,43 @@ function updateSyncUI(nextState = syncState) {
     synced: "sync.syncedTitle",
     offline: "sync.offlineTitle",
     error: "sync.errorTitle",
-    "email-sent": "sync.emailSentTitle",
   };
   const title = t(statusTitles[syncState.status] || "sync.localTitle");
-  const detail = syncState.messageKey ? t(syncState.messageKey, syncState.messageArgs) : (signedIn ? t("sync.signedInDetail") : t("sync.signedOutDetail"));
+  const detail = t(syncState.messageKey || "sync.localReady", syncState.messageArgs);
 
-  $("#syncLabel").textContent = signedIn
-    ? syncState.status === "synced" ? t("sync.syncedTitle") : t("sync.active")
-    : syncState.status === "email-sent" ? t("sync.emailSentTitle") : t("sync.localTitle");
+  $("#syncLabel").textContent = title;
   $("#cloudSyncTitle").textContent = title;
   $("#cloudSyncDetail").textContent = detail;
   $("#syncDot").dataset.status = syncState.status;
-  $("#syncSignInForm").hidden = signedIn || !syncState.configured;
-  $("#syncAccount").hidden = !signedIn;
-  $("#syncEmailLabel").textContent = syncState.user?.email || t("sync.signedInAccount");
-  $("#syncNow").disabled = !signedIn || syncState.status === "syncing";
-  $("#signOutSync").disabled = syncState.status === "syncing";
+  $("#syncNow").disabled = !linked || syncState.status === "syncing";
+  $("#linkDevice").disabled = !syncState.hasSyncKey;
+  $("#shareDeviceLink").hidden = typeof navigator.share !== "function";
+  if (!$("#deviceLinkPanel").hidden) $("#deviceLink").value = syncController?.getDeviceLink() || "";
   $("#syncStatus").textContent = syncState.status === "unconfigured"
     ? t("sync.setupHelp")
     : syncState.status === "error" ? detail : "";
-  $("#resetData").textContent = signedIn ? t("settings.eraseSynced") : t("settings.eraseLocal");
+  $("#resetData").textContent = linked ? t("settings.eraseSynced") : t("settings.eraseLocal");
 }
 
-$("#syncSignInForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const email = $("#syncEmail").value.trim();
-  if (!email) return;
-  const button = $("#sendSignInLink");
-  button.disabled = true;
-  $("#syncStatus").textContent = "";
+$("#linkDevice").addEventListener("click", () => {
+  $("#deviceLinkPanel").hidden = !$("#deviceLinkPanel").hidden;
+  $("#deviceLink").value = syncController.getDeviceLink();
+});
+
+$("#copyDeviceLink").addEventListener("click", async () => {
   try {
-    await syncController.requestMagicLink(email);
-  } catch (error) {
-    $("#syncStatus").textContent = t("sync.signInSendError");
-  } finally {
-    button.disabled = false;
+    await navigator.clipboard.writeText(syncController.getDeviceLink());
+    showToast(t("sync.linkCopied"));
+  } catch {
+    $("#deviceLink").focus();
+    $("#deviceLink").select();
+    $("#syncStatus").textContent = t("sync.copyManually");
   }
+});
+
+$("#shareDeviceLink").addEventListener("click", async () => {
+  try { await navigator.share({ title: "RoadReady Portugal", text: t("sync.shareLinkPrompt"), url: syncController.getDeviceLink() }); }
+  catch (error) { if (error.name !== "AbortError") $("#syncStatus").textContent = t("sync.copyManually"); }
 });
 
 $("#syncNow").addEventListener("click", async () => {
@@ -609,19 +614,8 @@ $("#syncNow").addEventListener("click", async () => {
   updateSyncUI(syncController?.getState());
 });
 
-$("#signOutSync").addEventListener("click", async () => {
-  $("#signOutSync").disabled = true;
-  try {
-    await syncController?.signOut();
-  } catch (error) {
-    $("#syncStatus").textContent = t("sync.signOutError");
-  } finally {
-    $("#signOutSync").disabled = false;
-  }
-});
-
 $("#exportData").addEventListener("click", () => {
-  const backup = { app: "RoadReady Portugal", version: 1, exportedAt: new Date().toISOString(), profile };
+  const backup = { app: "RoadReady Portugal", version: 2, exportedAt: new Date().toISOString(), profile, syncKey: syncController?.getSyncKey() };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -643,9 +637,11 @@ $("#importFile").addEventListener("change", async (event) => {
     const parsed = JSON.parse(await file.text());
     const incoming = parsed.profile || parsed;
     if (!incoming || typeof incoming.questionProgress !== "object" || !Array.isArray(incoming.sessions)) throw new Error(t("storage.invalidBackup"));
+    if (parsed.syncKey && !isValidSyncKey(parsed.syncKey)) throw new Error(t("storage.invalidBackup"));
     profile = normaliseProfile(incoming);
     if (profile.uiLanguage === "ru" || profile.language === "ru") await ensureRussianCorpus();
     saveProfile();
+    if (parsed.syncKey) await syncController.connect(parsed.syncKey);
     applyStaticTranslations();
     updateStorageSummary();
     render();
@@ -658,17 +654,17 @@ $("#importFile").addEventListener("change", async (event) => {
 });
 
 $("#resetData").addEventListener("click", async () => {
-  const isSynced = Boolean(syncState.user);
+  const isSynced = Boolean(syncState.configured && syncState.hasSyncKey);
   const prompt = isSynced ? t("storage.eraseSyncedConfirm") : t("storage.eraseLocalConfirm");
   if (!confirm(prompt)) return;
   const preferences = { uiLanguage: profile.uiLanguage, language: profile.language };
   localStorage.removeItem(PROFILE_KEY);
-  profile = { ...defaultProfile(), ...preferences };
+  profile = { ...defaultProfile(), ...preferences, resetAt: new Date().toISOString() };
   saveProfile();
-  if (isSynced) await syncController?.syncNow();
+  const cloudErased = isSynced && await syncController?.syncNow();
   modal.hidden = true;
   render();
-  showToast(isSynced ? t("storage.erasedSynced") : t("storage.erasedLocal"));
+  showToast(isSynced ? t(cloudErased ? "storage.erasedSynced" : "storage.eraseQueued") : t("storage.erasedLocal"));
 });
 
 main.innerHTML = `<div class="page"><div class="skeleton" style="height:44px;width:310px;margin-bottom:30px"></div><div class="hero-grid"><div class="skeleton" style="height:278px"></div><div class="skeleton" style="height:278px"></div></div></div>`;
