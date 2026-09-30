@@ -232,6 +232,9 @@ a { color: inherit; }
 .question-capture-actions .button[hidden] { display: none; }
 .capture-status { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .capture-status:empty { display: none; }
+.question-prompt-fallback { margin-top: 12px; }
+.question-prompt-fallback label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.question-prompt-fallback textarea { display: block; width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); font: inherit; font-size: 16px; line-height: 1.5; resize: vertical; }
 .feedback { margin-top: 15px; padding: 15px 16px; border: 1px solid #cfe0d2; background: #f0f5f0; border-radius: 13px; font-size: 11px; line-height: 1.5; animation: feedbackIn 220ms ease both; }
 .feedback.incorrect { border-color: var(--red); background: #f9ece7; }
 .feedback-heading { display: flex; align-items: center; gap: 9px; }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createQuestionImage, getCaptureContent, getQuestionImagePath, wrapCanvasText } from "../question-capture.js";
+import { createQuestionImage, getCaptureContent, getQuestionChatGPTPrompt, getQuestionImagePath, wrapCanvasText } from "../question-capture.js";
 
 const question = {
   sourceId: 2352, image: "https://www.bomcondutor.pt/assets/images/questions/2352.jpg",
@@ -15,6 +15,16 @@ assert.equal(getCaptureContent(question, "ru").text, question.text.ru);
 assert.equal(getCaptureContent(question, "pt").answers[0].text, question.answers[0].pt);
 assert.equal(getCaptureContent(question, "missing").text, question.text.en);
 assert.ok(!("correct" in getCaptureContent(question)));
+for (const language of ["en", "ru", "pt"]) {
+  const prompt = getQuestionChatGPTPrompt(question, language);
+  assert.ok(prompt.includes(question.text[language]));
+  assert.ok(prompt.includes(`1. ${question.answers[0][language]}`));
+  assert.ok(prompt.includes(`2. ${question.answers[1][language]}`));
+  assert.ok(prompt.includes(question.sourceUrl));
+  assert.ok(!prompt.includes("SECRET_EXPLANATION"));
+  assert.ok(!prompt.includes("correct: B"));
+}
+assert.ok(getQuestionChatGPTPrompt(question, "missing").includes("Answer in English"));
 const measure = { measureText: text => ({ width: Array.from(text).length * 10 }) };
 assert.deepEqual(wrapCanvasText(measure, "one two three", 70), ["one two", "three"]);
 assert.deepEqual(wrapCanvasText(measure, "abcdefghij", 40), ["abcd", "efgh", "ij"]);

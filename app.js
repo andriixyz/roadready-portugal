@@ -1,6 +1,6 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20260930-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20260930-3";
-import { createQuestionImage, getQuestionImagePath } from "./question-capture.js?v=20260930-2";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20260930-4";
+import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -371,8 +371,9 @@ function renderQuestion() {
           }).join("")}</div>
           ${session.checked && session.mode !== "exam" ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: q.correct })}</strong></div><p>${escapeHtml(explanation)}</p><small>${session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
           <div class="quiz-actions"><span class="quiz-hint">${t("quiz.keyboardHint")}</span><button class="button ${session.checked ? "button-primary" : "button-accent"}" id="quizPrimary" ${session.selected ? "" : "disabled"}>${session.mode === "exam" ? (session.index === session.questions.length - 1 ? t("quiz.finishExam") : t("quiz.next")) : session.checked ? (session.index === session.questions.length - 1 ? t("quiz.results") : t("quiz.continue")) : t("quiz.check")} →</button></div>
-          <div class="question-capture-actions"><button class="button button-primary" id="askChatGPT" type="button">${t("quiz.askChatGPT")} ↗</button><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button><a class="button button-ghost" id="chatGPTOpenLink" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" hidden>${t("quiz.openChatGPT")} ↗</a></div>
+          <div class="question-capture-actions"><button class="button button-primary" id="askChatGPT" type="button">${t("quiz.askChatGPT")} ↗</button><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="copyQuestionPrompt" type="button">${t("quiz.copyPrompt")}</button><button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button><a class="button button-ghost" id="chatGPTOpenLink" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" hidden>${t("quiz.openChatGPT")} ↗</a></div>
           <p class="capture-status" id="questionCaptureStatus" role="status">${t("quiz.chatGPTHint")}</p>
+          <div class="question-prompt-fallback" id="questionPromptFallback" hidden><label for="questionPromptText">${t("quiz.promptLabel")}</label><textarea id="questionPromptText" readonly rows="7">${escapeHtml(getQuestionChatGPTPrompt(q, language))}</textarea></div>
         </div>
       </article>
     </div>`;
@@ -390,12 +391,13 @@ function renderQuestion() {
 }
 
 function bindQuestionCapture(question, language) {
-  const button = $("#copyQuestionImage"), askButton = $("#askChatGPT"), downloadButton = $("#downloadQuestionImage"), chatLink = $("#chatGPTOpenLink"), status = $("#questionCaptureStatus");
+  const button = $("#copyQuestionImage"), askButton = $("#askChatGPT"), promptButton = $("#copyQuestionPrompt"), promptFallback = $("#questionPromptFallback"), promptText = $("#questionPromptText"), downloadButton = $("#downloadQuestionImage"), chatLink = $("#chatGPTOpenLink"), status = $("#questionCaptureStatus");
   let preparedBlob = null;
   const copyImage = async (openChatGPT = false) => {
     const activeButton = openChatGPT ? askButton : button;
     button.disabled = true;
     askButton.disabled = true;
+    promptButton.disabled = true;
     activeButton.textContent = t("quiz.preparingImage");
     status.textContent = "";
     downloadButton.hidden = true;
@@ -429,6 +431,7 @@ function bindQuestionCapture(question, language) {
       if (button.isConnected && askButton.isConnected) {
         button.disabled = false;
         askButton.disabled = false;
+        promptButton.disabled = false;
         button.textContent = `▣ ${t("quiz.copyForChatGPT")}`;
         askButton.textContent = `${t("quiz.askChatGPT")} ↗`;
       }
@@ -436,6 +439,20 @@ function bindQuestionCapture(question, language) {
   };
   button.addEventListener("click", () => { void copyImage(); });
   askButton.addEventListener("click", () => { void copyImage(true); });
+  promptButton.addEventListener("click", async () => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Text clipboard unavailable");
+      await navigator.clipboard.writeText(promptText.value);
+      promptFallback.hidden = true;
+      status.textContent = t("quiz.promptCopied");
+      showToast(t("quiz.promptCopied"));
+    } catch {
+      promptFallback.hidden = false;
+      status.textContent = t("quiz.copyPromptManually");
+      promptText.focus();
+      promptText.select();
+    }
+  });
   downloadButton.addEventListener("click", () => {
     if (!preparedBlob) return;
     const url = URL.createObjectURL(preparedBlob);

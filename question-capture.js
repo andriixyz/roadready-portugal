@@ -13,6 +13,21 @@ export function getCaptureContent(question, language = "en") {
   return { text, answers, imagePath: getQuestionImagePath(question), sourceUrl: question.sourceUrl || "" };
 }
 
+export function getQuestionChatGPTPrompt(question, language = "en") {
+  const instructions = {
+    en: "Please explain this Portugal Category B driving-theory question using the attached image, if provided. Identify the correct option, explain the relevant rule, and briefly explain why the other options are incorrect. Answer in English. If the image is needed but missing, ask me to attach it before answering.",
+    ru: "Объясни этот вопрос теоретического экзамена на права категории B в Португалии, используя прикреплённое изображение, если оно есть. Укажи правильный вариант, объясни соответствующее правило и кратко поясни, почему остальные варианты неверны. Ответь на русском. Если для ответа нужно изображение, но оно отсутствует, сначала попроси меня прикрепить его.",
+    pt: "Explica esta pergunta do exame teórico da categoria B em Portugal, usando a imagem anexada, se existir. Identifica a opção correta, explica a regra aplicável e indica brevemente por que razão as outras opções estão erradas. Responde em português. Se a imagem for necessária mas estiver em falta, pede-me para a anexar antes de responder.",
+  };
+  const content = getCaptureContent(question, language);
+  return [
+    instructions[language] || instructions.en,
+    `#${question.sourceId}\n${content.text}`,
+    content.answers.map(answer => `${answer.label}. ${answer.text}`).join("\n"),
+    content.sourceUrl,
+  ].filter(Boolean).join("\n\n");
+}
+
 export function wrapCanvasText(context, text, maxWidth) {
   const lines = [];
   for (const paragraph of String(text).split(/\r?\n/)) {
