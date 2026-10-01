@@ -195,6 +195,16 @@ a { color: inherit; }
 .quiz-progress { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; }
 .quiz-progress span { display: block; height: 100%; background: var(--orange); width: var(--value); transition: width 250ms ease; }
 .quiz-counter { color: var(--muted); font-size: 11px; font-weight: 750; }
+.quiz-navigation { margin-bottom: 22px; }
+.quiz-navigation-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.quiz-navigation-controls .button { min-height: 44px; }
+.quiz-navigation-status { color: var(--muted); font-size: 11px; text-align: center; }
+.quiz-question-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.quiz-question-number { min-width: 44px; height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); cursor: pointer; font-size: 12px; font-weight: 750; }
+.quiz-question-number.answered { background: var(--green-2); border-color: var(--green); }
+.quiz-question-number.draft { border-style: dashed; border-color: var(--green); }
+.quiz-question-number[aria-current] { background: var(--green); border-color: var(--green); color: white; }
+.quiz-question-number:focus-visible, .quiz-navigation-controls .button:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
 .question-card { display: grid; grid-template-columns: minmax(260px, .85fr) minmax(360px, 1.15fr); overflow: hidden; min-height: 590px; }
 .question-visual { align-self: start; min-width: 0; background: #e4e0d6; display: grid; grid-template-rows: auto auto; position: relative; overflow: hidden; }
 .question-image-frame { min-width: 0; min-height: 0; display: block; background: #d8d4ca; }
@@ -375,6 +385,10 @@ a { color: inherit; }
   .question-card { min-height: 0; }
   .quiz-topbar { grid-template-columns: auto minmax(80px, 1fr) auto; gap: 11px; margin-bottom: 12px; }
   .quiz-counter { grid-column: auto; white-space: nowrap; }
+  .quiz-navigation { margin-bottom: 14px; }
+  .quiz-navigation-controls { flex-wrap: wrap; gap: 8px; }
+  .quiz-navigation-controls .button { flex: 1; padding-inline: 10px; font-size: 11px; }
+  .quiz-navigation-status { order: 1; width: 100%; }
   .question-card { border-radius: 20px; }
   .question-visual { min-height: 0; height: auto; aspect-ratio: auto; max-height: none; }
   .question-image-frame { height: auto; }

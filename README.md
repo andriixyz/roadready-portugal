@@ -13,6 +13,10 @@ Open `http://localhost:4173`.
 
 Use a local HTTP server or the deployed site, not a `file://` URL. The first image preparation downloads the public question pictures; subsequent runs reuse the local cache.
 
+## Move between questions
+
+All question modes (quick practice, review, mistakes and mock exam) support **Previous question**, **Next question**, and numbered shortcuts. You can skip a question and return to it later; selected answers stay in the current session. Checked practice answers keep their feedback and count toward progress only once. Mock exam answers can be changed until submission, and navigation does not reset the timer. At the end, **Return to unanswered** takes you to skipped questions before submitting. Use the left/right arrow keys to navigate, number keys 1–4 to select an answer, and Enter to check or continue.
+
 ## Copy a question into ChatGPT
 
 During a quiz, press **Ask ChatGPT** to copy the screenshot and open ChatGPT in a new tab, then paste it into the composer. Return to the quiz, press **Copy prompt**, and paste the explanation request into the same composer. Paste the image before copying the prompt, because copying text replaces the image on the clipboard. If the browser blocks the new tab, use the **Open ChatGPT** link shown below the button. Neither text nor image is inserted or sent automatically. **Copy image for ChatGPT** remains available if you want to paste into an existing chat instead.

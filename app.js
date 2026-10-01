@@ -1,5 +1,6 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20260930-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20260930-4";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261001-1";
+import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261001-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -243,6 +244,7 @@ function render() {
   if (route === "practice") renderPractice();
   else if (route === "progress") renderProgress();
   else if (route === "sources") renderSources();
+  else if (route === "quiz" && session?.result) renderResult(session, session.result);
   else if (route === "quiz" && session) renderQuestion();
   else renderDashboard();
   main.focus({ preventScroll: true });
@@ -337,7 +339,7 @@ function selectForMode(mode) {
 function startSession(mode) {
   const selected = selectForMode(mode);
   if (!selected.length) { showToast(mode === "review" ? t("practice.nothingDue") : t("practice.answerFirst")); return; }
-  session = { mode, questions: selected, index: 0, answers: [], selected: null, checked: false, startedAt: Date.now(), remaining: mode === "exam" ? 30 * 60 : null, questionLanguage: profile.language };
+  session = createQuizSession(mode, selected, profile.language);
   location.hash = "quiz";
   renderQuestion();
 }
@@ -346,9 +348,13 @@ function bindStartButtons() { $$('[data-start]').forEach((button) => button.addE
 
 function renderQuestion() {
   if (!session) { location.hash = "practice"; return; }
+  if (session.result) { renderResult(session, session.result); return; }
   const q = session.questions[session.index];
   const language = session.questionLanguage || profile.language || "en";
-  const progress = (session.index / session.questions.length) * 100;
+  const progress = (session.answers.filter(Boolean).length / session.questions.length) * 100;
+  const unanswered = firstUnansweredIndex(session);
+  const isLast = session.index === session.questions.length - 1;
+  const advanceLabel = isLast && unanswered !== -1 ? t("quiz.returnUnanswered") : isLast ? t(session.mode === "exam" ? "quiz.finishExam" : "quiz.results") : t(session.mode === "exam" ? "quiz.next" : "quiz.continue");
   const answerState = session.answers[session.index];
   const title = q.text?.[language] || q.text?.en || q.text?.pt;
   const correctAnswer = q.answers.find((answer) => answer.key === q.correct)?.[language] || q.answers.find((answer) => answer.key === q.correct)?.en || q.correct;
@@ -357,6 +363,13 @@ function renderQuestion() {
   main.innerHTML = `
     <div class="page question-page">
       <div class="quiz-topbar"><button class="icon-button" id="exitQuiz" aria-label="${t("quiz.exit")}">×</button><div class="quiz-progress" style="--value:${progress}%"><span></span></div><span class="quiz-counter">${session.mode === "exam" ? `<b id="timer">${formatTime(session.remaining)}</b> · ` : ""}${t("quiz.counter", { current: formatNumber(session.index + 1), total: formatNumber(session.questions.length) })}</span></div>
+      <nav class="quiz-navigation" aria-label="${t("quiz.navigation")}">
+        <div class="quiz-navigation-controls"><button class="button button-secondary" id="quizPrevious" ${session.index === 0 ? "disabled" : ""}>← ${t("quiz.previous")}</button><span class="quiz-navigation-status" role="status">${t("quiz.answeredCount", { count: formatNumber(session.answers.filter(Boolean).length), total: formatNumber(session.questions.length) })}</span><button class="button button-secondary" id="quizNext" ${isLast ? "disabled" : ""}>${t("quiz.next")} →</button></div>
+        <div class="quiz-question-list">${session.questions.map((_, index) => {
+          const status = session.answers[index] ? "answered" : session.picks[index] ? "draft" : "unanswered";
+          return `<button type="button" class="quiz-question-number ${status}" data-question-index="${index}" ${index === session.index ? 'aria-current="step"' : ""} aria-label="${t("quiz.questionStatus", { number: formatNumber(index + 1), status: t(`quiz.status.${status}`) })}">${formatNumber(index + 1)}</button>`;
+        }).join("")}</div>
+      </nav>
       <article class="card question-card">
         <div class="question-visual"><div class="question-image-frame">${image}</div><div class="image-links"><a class="source-pill" href="${escapeHtml(q.sourceUrl)}" target="_blank" rel="noopener">${t("quiz.source", { id: escapeHtml(q.sourceId) })}</a>${q.image ? `<a class="full-image-link" href="${escapeHtml(q.image)}" target="_blank" rel="noopener">${t("quiz.fullImage")}</a>` : ""}</div></div>
         <div class="question-body">
@@ -370,7 +383,7 @@ function renderQuestion() {
             return `<button class="answer-option ${status}" data-answer="${answer.key}" aria-pressed="${selected}" ${checked ? "disabled" : ""}><span class="answer-key">${i + 1}</span><span>${escapeHtml(answer[language] || answer.en || answer.pt)}</span><span class="answer-marker">${marker}</span></button>`;
           }).join("")}</div>
           ${session.checked && session.mode !== "exam" ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: q.correct })}</strong></div><p>${escapeHtml(explanation)}</p><small>${session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
-          <div class="quiz-actions"><span class="quiz-hint">${t("quiz.keyboardHint")}</span><button class="button ${session.checked ? "button-primary" : "button-accent"}" id="quizPrimary" ${session.selected ? "" : "disabled"}>${session.mode === "exam" ? (session.index === session.questions.length - 1 ? t("quiz.finishExam") : t("quiz.next")) : session.checked ? (session.index === session.questions.length - 1 ? t("quiz.results") : t("quiz.continue")) : t("quiz.check")} →</button></div>
+          <div class="quiz-actions"><span class="quiz-hint">${t("quiz.keyboardHint")}</span><button class="button ${session.checked ? "button-primary" : "button-accent"}" id="quizPrimary" ${session.selected ? "" : "disabled"}>${session.mode === "exam" || session.checked ? advanceLabel : t("quiz.check")} →</button></div>
           <div class="question-capture-actions"><button class="button button-primary" id="askChatGPT" type="button">${t("quiz.askChatGPT")} ↗</button><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="copyQuestionPrompt" type="button">${t("quiz.copyPrompt")}</button><button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button><a class="button button-ghost" id="chatGPTOpenLink" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" hidden>${t("quiz.openChatGPT")} ↗</a></div>
           <p class="capture-status" id="questionCaptureStatus" role="status">${t("quiz.chatGPTHint")}</p>
           <div class="question-prompt-fallback" id="questionPromptFallback" hidden><label for="questionPromptText">${t("quiz.promptLabel")}</label><textarea id="questionPromptText" readonly rows="7">${escapeHtml(getQuestionChatGPTPrompt(q, language))}</textarea></div>
@@ -381,6 +394,9 @@ function renderQuestion() {
   $$('[data-lang]').forEach((button) => button.addEventListener("click", () => { void setQuestionLanguage(button.dataset.lang); }));
   $$("[data-answer]").forEach((button) => button.addEventListener("click", () => chooseAnswer(button.dataset.answer)));
   $("#quizPrimary").addEventListener("click", advanceQuiz);
+  $("#quizPrevious").addEventListener("click", () => navigateQuestion(session.index - 1));
+  $("#quizNext").addEventListener("click", () => navigateQuestion(session.index + 1));
+  $$("[data-question-index]").forEach((button) => button.addEventListener("click", () => navigateQuestion(Number(button.dataset.questionIndex))));
   bindQuestionCapture(q, language);
   const img = $(".question-visual img");
   if (img) img.addEventListener("error", () => {
@@ -480,32 +496,49 @@ async function setQuestionLanguage(language) {
 }
 
 function chooseAnswer(key) {
-  if (session.checked) return;
-  session.selected = key;
+  if (!selectSessionAnswer(session, key)) return;
   $$("[data-answer]").forEach((button) => {
     const selected = button.dataset.answer === key;
     button.classList.toggle("selected", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
   $("#quizPrimary").disabled = false;
+  const number = $(`[data-question-index="${session.index}"]`);
+  number.classList.remove("unanswered", "draft", "answered");
+  const status = session.mode === "exam" ? "answered" : "draft";
+  number.classList.add(status);
+  number.setAttribute("aria-label", t("quiz.questionStatus", { number: formatNumber(session.index + 1), status: t(`quiz.status.${status}`) }));
+  $(".quiz-navigation-status").textContent = t("quiz.answeredCount", { count: formatNumber(session.answers.filter(Boolean).length), total: formatNumber(session.questions.length) });
+  $(".quiz-progress").style.setProperty("--value", `${(session.answers.filter(Boolean).length / session.questions.length) * 100}%`);
+  if (session.mode === "exam" && session.index === session.questions.length - 1) $("#quizPrimary").textContent = `${t(firstUnansweredIndex(session) === -1 ? "quiz.finishExam" : "quiz.returnUnanswered")} →`;
+}
+
+function navigateQuestion(index) {
+  if (!moveToQuestion(session, index)) return;
+  renderQuestion();
+  const heading = $(".question-body h1");
+  if (heading) {
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+  }
 }
 
 function advanceQuiz() {
-  if (!session.selected) return;
+  if (!session || session.result || !session.selected) return;
   const q = session.questions[session.index];
   if (session.mode !== "exam" && !session.checked) {
-    session.checked = true;
-    recordQuestion(q, session.selected === q.correct);
-    session.answers[session.index] = { questionId: q.id, pick: session.selected, correct: session.selected === q.correct };
+    const answer = checkSessionAnswer(session);
+    recordQuestion(q, answer.correct);
     renderQuestion();
     return;
   }
-  if (session.mode === "exam") session.answers[session.index] = { questionId: q.id, pick: session.selected, correct: session.selected === q.correct };
-  if (session.index >= session.questions.length - 1) { finishSession(); return; }
-  session.index += 1;
-  session.selected = session.answers[session.index]?.pick || null;
-  session.checked = false;
-  renderQuestion();
+  if (session.index >= session.questions.length - 1) {
+    const unanswered = firstUnansweredIndex(session);
+    if (unanswered !== -1) navigateQuestion(unanswered);
+    else finishSession();
+    return;
+  }
+  navigateQuestion(session.index + 1);
 }
 
 function recordQuestion(question, isCorrect) {
@@ -519,6 +552,7 @@ function recordQuestion(question, isCorrect) {
 }
 
 function finishSession() {
+  if (!session || session.result) return;
   clearInterval(timerId);
   if (session.mode === "exam") session.questions.forEach((q, index) => recordQuestion(q, session.answers[index]?.correct || false));
   const correct = session.answers.filter((answer) => answer?.correct).length;
@@ -533,9 +567,9 @@ function finishSession() {
     durationSeconds: Math.round((Date.now() - session.startedAt) / 1000),
   };
   profile.sessions = [...profile.sessions, result].slice(-100);
-  saveProfile();
   const finished = session;
   session = { ...session, result };
+  saveProfile();
   renderResult(finished, result);
 }
 
@@ -555,12 +589,14 @@ function renderResult(finished, result) {
 
 function startTimer() {
   clearInterval(timerId);
-  timerId = setInterval(() => {
-    session.remaining -= 1;
+  const tick = () => {
+    session.remaining = Math.max(0, Math.ceil((session.endsAt - Date.now()) / 1000));
     const timer = $("#timer");
     if (timer) timer.textContent = formatTime(session.remaining);
     if (session.remaining <= 0) finishSession();
-  }, 1000);
+  };
+  tick();
+  if (!session.result) timerId = setInterval(tick, 1000);
 }
 function formatTime(seconds) { return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; }
 
@@ -588,12 +624,19 @@ function renderSources() {
 function showToast(message) { const toast = $("#toast"); toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2600); }
 
 document.addEventListener("keydown", (event) => {
-  if (!session || location.hash !== "#quiz") return;
+  if (!session || session.result || location.hash !== "#quiz" || !modal.hidden) return;
+  if (event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (["1", "2", "3", "4"].includes(event.key)) {
     const q = session.questions[session.index];
     const answer = q.answers[Number(event.key) - 1];
-    if (answer) chooseAnswer(answer.key);
-  } else if (event.key === "Enter" && session.selected) advanceQuiz();
+    if (answer) { event.preventDefault(); chooseAnswer(answer.key); }
+  } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    event.preventDefault();
+    navigateQuestion(session.index + (event.key === "ArrowLeft" ? -1 : 1));
+  } else if (event.key === "Enter" && session.selected && (event.target.closest("[data-answer]") || !event.target.closest("button, a"))) {
+    event.preventDefault();
+    advanceQuiz();
+  }
 });
 
 window.addEventListener("hashchange", render);
