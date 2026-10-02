@@ -6,6 +6,7 @@ import * as activity from "../study-activity.js";
 import * as profiles from "../profile-data.js";
 import { localeFor, normalizeLanguage, russianPluralKey, translate } from "../i18n.js";
 import { incrementAnswerCounts, mergeProfiles } from "../sync.js";
+import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "../question-verification.js";
 
 const source = (await readFile(new URL("../app.js", import.meta.url), "utf8"))
   .replace(/^import .*;\n/gm, "")
@@ -29,6 +30,7 @@ function harness(saved = null) {
   const location = { hash: "#dashboard" };
   const context = vm.createContext({
     ...quiz, ...activity, ...profiles, localeFor, normalizeLanguage, russianPluralKey, translate, incrementAnswerCounts,
+    prepareVerificationAudit, getQuestionVerification, verificationPdfUrl,
     createQuizSession: (mode, selected, language, now = control.now) => quiz.createQuizSession(mode, selected, language, now),
     answersOnDay: (profile, date = new Date(control.now)) => activity.answersOnDay(profile, date),
     Date: ClockDate, getDeviceId: () => "test-device",

@@ -6,6 +6,7 @@ import { localeFor, normalizeLanguage, russianPluralKey, translate } from "../i1
 import { incrementAnswerCounts } from "../sync.js";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "../profile-data.js";
 import { recordStudyActivity, answersOnDay, studyStreak } from "../study-activity.js";
+import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "../question-verification.js";
 
 // Run the app's real handlers with an in-memory DOM and storage, without
 // loading the corpus or connecting a study profile to the network.
@@ -28,6 +29,7 @@ const context = vm.createContext({
   ...quiz, localeFor, normalizeLanguage, russianPluralKey, translate, incrementAnswerCounts,
   MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile,
   recordStudyActivity, answersOnDay, studyStreak,
+  prepareVerificationAudit, getQuestionVerification, verificationPdfUrl,
   getDeviceId: () => "test-device",
   document: {
     querySelector: node, querySelectorAll: () => [],
@@ -86,4 +88,25 @@ assert.ok(main.innerHTML.includes('Source question #1'));
 assert.ok(main.innerHTML.includes('<dt>Your answer</dt><dd>B · Wrong option</dd>'));
 assert.ok(main.innerHTML.includes('<dt>Study-key answer</dt><dd>A · Correct option</dd>'));
 assert.ok(main.innerHTML.includes('<dt>Your answer</dt><dd>Not answered</dd>'), "Unanswered mock items must be explicit");
-console.log("Quiz results checks passed: submission, late renders/language/sync, single recording, and image/source/chosen/unanswered review details.");
+
+// Verification labels must not reveal reviewed answer reasoning during a mock.
+const bank = JSON.parse(await readFile(new URL("../public/data/questions-en.json", import.meta.url), "utf8"));
+const proofPayload = JSON.parse(await readFile(new URL("../public/data/imt-verification.json", import.meta.url), "utf8"));
+context.auditFixture = await prepareVerificationAudit(bank.questions, proofPayload);
+context.auditedQuestion = bank.questions.find((question) => question.explanationReviewed);
+const actualProof = getQuestionVerification(context.auditedQuestion, context.auditFixture);
+run("profile = defaultProfile(); verificationAudit = auditFixture; questions = [auditedQuestion]; session = createQuizSession('exam', questions, 'en'); renderQuestion();");
+assert.ok(main.innerHTML.includes(`verification-${actualProof.status}`), "The source comparison belongs on the question");
+assert.ok(main.innerHTML.includes("#page="), "The verification links to a specific PDF page");
+assert.ok(!main.innerHTML.includes("Answer reasoning reviewed"));
+assert.ok(!main.innerHTML.includes("rule-source-link"));
+assert.ok(!main.innerHTML.includes("Article 43(1)"), "A mock must not disclose the reviewed rule before submission");
+run("chooseAnswer('A'); finishSession()");
+assert.ok(main.innerHTML.includes("Answer reasoning reviewed"));
+assert.ok(main.innerHTML.includes("rule-source-link"));
+run("session = createQuizSession('quick', questions, 'en'); profile.uiLanguage = 'ru'; renderQuestion();");
+assert.ok(main.innerHTML.includes(translate(`verification.${actualProof.status}.label`, "ru")));
+assert.ok(!main.innerHTML.includes("Обоснование ответа проверено"));
+run("chooseAnswer('B'); advanceQuiz()");
+assert.ok(main.innerHTML.includes("Обоснование ответа проверено"));
+console.log("Quiz results checks passed: submission, late renders/language/sync, single recording, review details, PDF verification and no reviewed-answer disclosure during mocks.");

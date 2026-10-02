@@ -52,6 +52,24 @@ The Russian overlay is loaded only when Russian is selected, which keeps the ini
 
 The app links separately to the 14 driver PDF groups published by IMT and clearly distinguishes those documents from the Bom Condutor study corpus and its non-official answer key. IMT does not publish the official solutions.
 
+### Compare with the IMT PDFs
+
+The Sources page shows the comparison of every app question with all 14 driver PDF groups and offers CSV reports. Questions link to the relevant PDF page and show one of four results: Portuguese wording/choices and image matched automatically; wording/choices matched but image unconfirmed; a candidate with differences; or no confirmed match. Expand the label for the scope and source-check date. An image match is an automated comparison, not a manual review.
+
+The PDFs include driver questions beyond Category B, so an unmatched PDF entry is not automatically a missing Category B question. Matching the Portuguese question does not certify its answer key, English/Russian translations or inclusion in a future exam. **Answer reasoning reviewed** is a separate label shown after checking an answer or reviewing results, with the existing rule-source link.
+
+See the [audit report](documentation/md/IMT-AUDIT.md) for counts, sources and comparison limits. To refresh the snapshot:
+
+```sh
+rtk npm run audit:imt:fetch       # downloads the live IMT index and 14 PDFs into tmp/imt-audit/
+rtk npm run audit:imt            # regenerates verification metadata and CSV/report files
+rtk npm run check:verification   # validates the corpus, sources and all cached image hashes
+```
+
+The audit command needs a Python interpreter with `pdfplumber`, `pypdf`, Pillow and NumPy. In Codex, use the bundled Python runtime returned by `load_workspace_dependencies`; invoke that interpreter directly with `scripts/audit_imt_pdfs.py` if the system `python3` lacks these packages. Routine app use and packaging still have no npm dependencies.
+
+Verification is stored separately from the translated corpora, so the audit does not modify question IDs, wording, answer order, answer keys or the Russian overlay. Changed Portuguese questions invalidate the old proof in the browser; missing/stale metadata leaves studying available with an unavailable label. Packaging also rejects image files changed since the audit. Refresh served version references when publishing a new audit snapshot.
+
 ## Progress storage and cross-device sync
 
 The app is local-first: answer history, spaced-repetition dates, mock results, language preference and study statistics are saved to `localStorage` immediately and remain available offline.

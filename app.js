@@ -1,9 +1,10 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261002-2";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261002-5";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261002-6";
 import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261001-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261002-2";
 import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
+import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "./question-verification.js?v=20261002-1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -83,6 +84,7 @@ let recoveredStoredProfile = false;
 let profile = loadProfile();
 let questions = [];
 let corpusMeta = { count: 0, generatedAt: null };
+let verificationAudit = null;
 let session = null;
 let timerId = null;
 let syncController = null;
@@ -211,12 +213,21 @@ async function loadCorpus() {
       corpusMeta = data;
       if (questions.length) {
         if (profile.uiLanguage === "ru" || profile.language === "ru") await ensureRussianCorpus();
+        await loadVerificationAudit();
         return;
       }
     } catch { /* try fallback */ }
   }
   questions = sampleQuestions;
   corpusMeta = { count: sampleQuestions.length, generatedAt: new Date().toISOString(), sample: true };
+}
+
+async function loadVerificationAudit() {
+  verificationAudit = null;
+  try {
+    const response = await fetch("public/data/imt-verification.json?v=20261002-1");
+    if (response.ok) verificationAudit = await prepareVerificationAudit(questions, await response.json());
+  } catch { /* Missing or stale verification must not prevent studying. */ }
 }
 
 function getStats() {
@@ -389,6 +400,15 @@ function explanationSourceLink(question) {
   return question.explanationSource ? `<a class="text-link rule-source-link" href="${escapeHtml(question.explanationSource)}" target="_blank" rel="noopener noreferrer">${t("quiz.ruleSource")} ↗</a>` : "";
 }
 
+function questionVerificationMarkup(question, showAnswerReview = false) {
+  const proof = getQuestionVerification(question, verificationAudit);
+  const status = proof?.status || "unavailable";
+  const location = proof?.locations[0];
+  const date = verificationAudit ? new Date(verificationAudit.auditedAt).toLocaleDateString(currentLocale()) : "";
+  const reviewed = question.explanationReviewed === true && Boolean(question.explanationSource);
+  return `<div class="question-verification"><details class="verification-details verification-${status}"><summary>${t(`verification.${status}.label`)}</summary><div class="verification-description"><p>${t(`verification.${status}.description`)}</p>${location ? `<a class="text-link" href="${escapeHtml(verificationPdfUrl(verificationAudit, location))}" target="_blank" rel="noopener noreferrer">${t(status === "matched" || status === "text-only" ? "verification.pdfLocation" : "verification.candidateLocation", { group: formatNumber(location.group), page: formatNumber(location.page), row: formatNumber(location.row) })} ↗</a>` : ""}${date ? `<p>${t("verification.date", { date })}</p>` : ""}<p>${t("verification.translations")}</p></div></details>${showAnswerReview ? `<span class="verification-answer ${reviewed ? "is-reviewed" : ""}">${t(reviewed ? "verification.answerReviewed" : "verification.answerUnreviewed")}</span>` : ""}</div>`;
+}
+
 function confirmLeaveSession() {
   return confirm(t(session.mode === "exam" ? "quiz.leaveExamConfirm" : "quiz.leaveConfirm"));
 }
@@ -423,6 +443,7 @@ function renderQuestion() {
         <div class="question-body">
           <div class="question-tools"><span class="question-topic">${escapeHtml(topicName(q.topic, language))}</span><div class="language-toggle" role="group" aria-label="${t("aria.questionLanguage")}"><button class="${language === "en" ? "active" : ""}" data-lang="en" aria-pressed="${language === "en"}">EN</button><button class="${language === "ru" ? "active" : ""}" data-lang="ru" aria-pressed="${language === "ru"}">RU</button><button class="${language === "pt" ? "active" : ""}" data-lang="pt" aria-pressed="${language === "pt"}">PT</button></div></div>
           <h1>${escapeHtml(title)}</h1>
+          ${questionVerificationMarkup(q, session.checked && session.mode !== "exam")}
           <div class="answers">${q.answers.map((answer, i) => {
             const selected = session.selected === answer.key || answerState?.pick === answer.key;
             const checked = session.checked && session.mode !== "exam";
@@ -665,7 +686,7 @@ function renderReviewItem(question, answer, language) {
   const image = question.image
     ? `<a class="review-image" href="${escapeHtml(question.image)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(t("quiz.openImage", { id }))}"><img src="${escapeHtml(getQuestionImagePath(question))}" data-remote-image="${escapeHtml(question.image)}" alt="${escapeHtml(t("quiz.imageAlt", { id }))}" loading="lazy" referrerpolicy="no-referrer" /></a>`
     : `<div class="review-image-placeholder">${t("quiz.textOnly")}</div>`;
-  return `<article class="card review-item">${image}<div class="review-copy"><a class="text-link" href="${escapeHtml(question.sourceUrl)}" target="_blank" rel="noopener noreferrer">${t("quiz.source", { id })}</a><h3>${escapeHtml(question.text?.[language] || question.text.en || question.text.pt)}</h3><dl class="review-answers"><div><dt>${t("result.yourAnswer")}</dt><dd>${escapeHtml(answerText(answer?.pick))}</dd></div><div><dt>${t("result.studyAnswer")}</dt><dd>${escapeHtml(answerText(question.correct))}</dd></div></dl><p>${escapeHtml(question.explanation?.[language] || question.explanation?.[profile.uiLanguage] || question.explanation?.en || t("result.correctFallback", { answer: question.correct }))}</p>${explanationSourceLink(question)}</div></article>`;
+  return `<article class="card review-item">${image}<div class="review-copy"><a class="text-link" href="${escapeHtml(question.sourceUrl)}" target="_blank" rel="noopener noreferrer">${t("quiz.source", { id })}</a><h3>${escapeHtml(question.text?.[language] || question.text.en || question.text.pt)}</h3>${questionVerificationMarkup(question, true)}<dl class="review-answers"><div><dt>${t("result.yourAnswer")}</dt><dd>${escapeHtml(answerText(answer?.pick))}</dd></div><div><dt>${t("result.studyAnswer")}</dt><dd>${escapeHtml(answerText(question.correct))}</dd></div></dl><p>${escapeHtml(question.explanation?.[language] || question.explanation?.[profile.uiLanguage] || question.explanation?.en || t("result.correctFallback", { answer: question.correct }))}</p>${explanationSourceLink(question)}</div></article>`;
 }
 
 function startTimer() {
@@ -707,7 +728,12 @@ function renderProgress() {
 
 function renderSources() {
   const base = "https://www.imt-ip.pt/wp-content/uploads/IMTT/Portugues/Condutores/PerguntasExames/Documents";
-  main.innerHTML = `<div class="page"><header class="page-header"><div><span class="eyebrow">${t("sources.eyebrow")}</span><h1>${t("sources.title")}</h1><p>${t("sources.subtitle")}</p></div><span class="date-chip">${t("sources.updated")}</span></header><div class="notice"><strong>${t("sources.keyTitle")}</strong> ${t("sources.keyNotice")}<br><strong>${t("sources.translationTitle")}</strong> ${t("sources.translationNotice")}</div><div class="section-heading"><div><h2>${t("sources.groups")}</h2><p>${t("sources.groupsDescription")}</p></div><a class="text-link" href="https://www.imt-ip.pt/condutores/obtencao/perguntas-de-exame/" target="_blank" rel="noopener">${t("sources.openIndex")}</a></div><section class="source-grid">${Array.from({ length: 14 }, (_, i) => `<a class="card source-card" href="${base}/rel_${i + 1}_condutores.pdf" target="_blank" rel="noopener"><span class="pdf-icon">PDF</span><span><strong>${t("sources.group", { number: formatNumber(i + 1) })}</strong><span>${t("sources.original")}</span></span></a>`).join("")}</section><div class="section-heading"><div><h2>${t("sources.dataNotes")}</h2><p>${t("sources.dataDescription")}</p></div></div><section class="stat-grid"><article class="card stat-card"><span>${t("sources.bank")}</span><strong>${formatNumber(questions.length)}</strong><small>${t("sources.publicQuestions")}</small></article><article class="card stat-card"><span>${t("sources.topics")}</span><strong>${formatNumber(new Set(questions.map((q) => q.topic)).size)}</strong><small>${t("sources.syllabusAreas")}</small></article><article class="card stat-card"><span>${t("sources.languages")}</span><strong>${t("sources.languageValue")}</strong><small>${t("sources.toggleHelp")}</small></article><article class="card stat-card"><span>${t("sources.lastImport")}</span><strong>${corpusMeta.generatedAt ? new Date(corpusMeta.generatedAt).toLocaleDateString(currentLocale()) : "—"}</strong><small>${t("sources.localCorpus")}</small></article></section></div>`;
+  const date = verificationAudit ? new Date(verificationAudit.auditedAt).toLocaleDateString(currentLocale()) : "";
+  const summary = verificationAudit?.summary;
+  const comparison = summary ? `<section class="card verification-report" aria-labelledby="verificationReportTitle"><h2 id="verificationReportTitle">${t("verification.reportTitle")}</h2><p>${t("verification.reportScope")}</p><div class="verification-totals">${[
+    ["matched", summary.matched], ["text-only", summary.textOnly], ["differences", summary.differences], ["not-found", summary.notFound],
+  ].map(([status, count]) => `<div><strong>${formatNumber(count)}</strong><span>${t(`verification.${status}.label`)}</span></div>`).join("")}</div><p>${t("verification.pdfTotals", { entries: formatNumber(summary.pdfEntries), unmatched: formatNumber(summary.pdfEntriesWithoutMatch) })}</p><p>${t("verification.categoryScope")}</p><p>${t("verification.answerScope")}</p><div class="verification-downloads"><a class="text-link" href="documentation/data/imt-app-comparison.csv" download>${t("verification.downloadApp")}</a><a class="text-link" href="documentation/data/imt-pdf-comparison.csv" download>${t("verification.downloadPdf")}</a></div></section>` : `<div class="notice">${t("verification.unavailable.description")}</div>`;
+  main.innerHTML = `<div class="page"><header class="page-header"><div><span class="eyebrow">${t("sources.eyebrow")}</span><h1>${t("sources.title")}</h1><p>${t("sources.subtitle")}</p></div><span class="date-chip">${date ? t("sources.updated", { date }) : t("verification.unavailable.label")}</span></header>${comparison}<div class="notice"><strong>${t("sources.keyTitle")}</strong> ${t("sources.keyNotice")}<br><strong>${t("sources.translationTitle")}</strong> ${t("sources.translationNotice")}</div><div class="section-heading"><div><h2>${t("sources.groups")}</h2><p>${t("sources.groupsDescription")}</p></div><a class="text-link" href="https://www.imt-ip.pt/condutores/obtencao/perguntas-de-exame/" target="_blank" rel="noopener">${t("sources.openIndex")}</a></div><section class="source-grid">${Array.from({ length: 14 }, (_, i) => `<a class="card source-card" href="${escapeHtml(verificationAudit?.sources.get(i + 1)?.url || `${base}/rel_${i + 1}_condutores.pdf`)}" target="_blank" rel="noopener"><span class="pdf-icon">PDF</span><span><strong>${t("sources.group", { number: formatNumber(i + 1) })}</strong><span>${t("sources.original")}</span></span></a>`).join("")}</section><div class="section-heading"><div><h2>${t("sources.dataNotes")}</h2><p>${t("sources.dataDescription")}</p></div></div><section class="stat-grid"><article class="card stat-card"><span>${t("sources.bank")}</span><strong>${formatNumber(questions.length)}</strong><small>${t("sources.publicQuestions")}</small></article><article class="card stat-card"><span>${t("sources.topics")}</span><strong>${formatNumber(new Set(questions.map((q) => q.topic)).size)}</strong><small>${t("sources.syllabusAreas")}</small></article><article class="card stat-card"><span>${t("sources.languages")}</span><strong>${t("sources.languageValue")}</strong><small>${t("sources.toggleHelp")}</small></article><article class="card stat-card"><span>${t("sources.lastImport")}</span><strong>${corpusMeta.generatedAt ? new Date(corpusMeta.generatedAt).toLocaleDateString(currentLocale()) : "—"}</strong><small>${t("sources.localCorpus")}</small></article></section></div>`;
 }
 
 function showToast(message) { const toast = $("#toast"); toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2600); }

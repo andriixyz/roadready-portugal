@@ -5,6 +5,7 @@ import { localeFor, normalizeLanguage, russianPluralKey, translate } from "../i1
 import { isValidSyncKey } from "../sync.js";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "../profile-data.js";
 import { recordStudyActivity, answersOnDay, studyStreak } from "../study-activity.js";
+import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "../question-verification.js";
 
 // Exercise the real import/load handlers, including their storage commits.
 const source = (await readFile(new URL("../app.js", import.meta.url), "utf8"))
@@ -32,6 +33,7 @@ function harness(initial = good) {
     localeFor, normalizeLanguage, russianPluralKey, translate, isValidSyncKey,
     MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile,
     recordStudyActivity, answersOnDay, studyStreak,
+    prepareVerificationAudit, getQuestionVerification, verificationPdfUrl,
     getDeviceId: () => "test-device",
     document: { querySelector: node, querySelectorAll: () => [], documentElement: node("html"), body: node("body"), addEventListener() {} },
     window: { addEventListener() {} }, location: { hash: "#dashboard" }, history: { replaceState() {} },
