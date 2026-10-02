@@ -17,6 +17,16 @@ Use a local HTTP server or the deployed site, not a `file://` URL. The first ima
 
 All question modes (quick practice, review, mistakes and mock exam) support **Previous question**, **Next question**, and numbered shortcuts. You can skip a question and return to it later; selected answers stay in the current session. Checked practice answers keep their feedback and count toward progress only once. Mock exam answers can be changed until submission, and navigation does not reset the timer. At the end, **Return to unanswered** takes you to skipped questions before submitting. Use the left/right arrow keys to navigate, number keys 1–4 to select an answer, and Enter to check or continue.
 
+Leaving an unfinished set through navigation, browser Back, or the exit button asks before discarding it. Cancel keeps the question order, checked feedback, drafts and mock deadline. Reloading or closing an active session requests the browser's leave warning; confirming a leave discards the session. Sessions are not resumed after reload.
+
+**Due review** selects only questions whose review date has arrived. If none are due, it shows the existing empty-state message and keeps you on the current page.
+
+Quick practice uses up to 10 questions, due review and Mistake clinic up to 20, and a mock up to 30. Dashboard counts and time estimates use the same limits as question selection. Mistake clinic includes only questions with more wrong than correct answers and shows an empty state when none qualify.
+
+On phones, the question grid expands on demand, the timer and question counter stay visible while scrolling, and navigating brings the next question back into view. Results review includes the road image, source question ID, your selected answer (or an unanswered label), and the study-key answer. Sources is available from mobile navigation.
+
+Settings supports keyboard focus within the dialog, Escape to close, and focus restoration to the opening control. Language and profile updates keep focus inside the open dialog.
+
 ## Copy a question into ChatGPT
 
 During a quiz, press **Ask ChatGPT** to copy the screenshot and open ChatGPT in a new tab, then paste it into the composer. Return to the quiz, press **Copy prompt**, and paste the explanation request into the same composer. Paste the image before copying the prompt, because copying text replaces the image on the clipboard. If the browser blocks the new tab, use the **Open ChatGPT** link shown below the button. Neither text nor image is inserted or sent automatically. **Copy image for ChatGPT** remains available if you want to paste into an existing chat instead.
@@ -31,9 +41,12 @@ Image clipboard access needs a supported browser and HTTPS (or localhost). If it
 
 - `npm run scrape` builds the Category B corpus from public Bom Condutor study pages and preserves their source URLs and non-official study answer key.
 - `npm run translate` adds an English machine translation while preserving every Portuguese source string.
-- `npm run explain` regenerates a concise English/Portuguese study note for every correct answer.
-- `npm run translate:ru` builds the compact Russian overlay. It resumes interrupted runs, validates the source hash and answer keys, and applies reviewed road-terminology corrections and Russian topic guidance.
+- `npm run explain` refreshes reviewed translation corrections and EN/PT/RU feedback without a translation service. The existing Russian overlay must match the English source hash before refreshing.
+- `npm run translate:ru` builds the compact Russian overlay. It resumes interrupted runs, validates the source hash and answer keys, and applies reviewed road-terminology corrections.
 - `npm run check` validates all 3,910 IDs, the English/Portuguese corpus, 18,931 Russian fields, answer keys, and every interface translation key.
+- `npm run check:content` verifies the reviewed corrections, explanation coverage, and preservation of the Portuguese wording and answer keys.
+
+Reviewed corrections are matched against the preserved Portuguese wording in `scripts/reviewed-content.mjs`. Detailed explanations appear only for questions with reviewed reasoning and a linked source. Other questions show the study-key answer and explicitly state that a detailed explanation has not yet been reviewed. Broad topic text is no longer presented as a question explanation; the whole corpus has not been manually reviewed.
 
 The Russian overlay is loaded only when Russian is selected, which keeps the initial mobile download smaller. The app language and the question language are stored separately: the full interface supports English and Russian, while each question can be viewed in English, Russian, or the Portuguese original.
 
@@ -43,11 +56,17 @@ The app links separately to the 14 driver PDF groups published by IMT and clearl
 
 The app is local-first: answer history, spaced-repetition dates, mock results, language preference and study statistics are saved to `localStorage` immediately and remain available offline.
 
+Daily goals and the seven-day activity chart count practice answers when checked, including unfinished or abandoned sets. Draft answers do not count. Mock questions count on submission, and completing a practice set does not count its answers again. New activity is dated using the device's local calendar day and merges per-device counters without duplicates; older completed-session totals remain available.
+
+The study streak counts consecutive active local dates through today, or through yesterday while today's study is still pending. A fresh profile starts at zero and a missed full day breaks the streak. Progress shows all 16 syllabus topics, ordered by lowest coverage and then lowest answer accuracy; a selector also offers most-covered-first ordering. `npm run check:study` verifies activity, streaks, session limits, topic ranking and the leave/review/mistakes behavior.
+
 There is no sign-in or account. A random private device key is generated automatically and saved in this browser. Supabase stores a hash of that key and the study profile, not an email address or a password. Only possession of the private key allows reading or updating that profile.
 
 To connect your phone and Mac, open **Your profile → Link another device**, copy/share the private link, and open it once on the other device. The key is imported and immediately removed from the address bar. From then on both devices sync automatically on changes, reconnect, and return to the app. Keep this link private.
 
 Concurrent updates use revision checks; answer counters are tracked per device so offline answers can be combined without double-counting. Resetting progress creates a new history generation so older devices cannot restore erased results. Use **Export backup** for recovery; the backup includes the private key and must also be kept private.
+
+Imports validate nested records and preferences before replacing saved progress. An invalid backup, failed language download, or storage quota failure leaves the previous profile intact. Backups are limited to 2 MiB. If older stored data is damaged, startup retains valid records and saves the original under `roadready-profile-recovery` when storage permits. `npm run check:backup` covers rejection, successful restore, and startup recovery.
 
 ### One-time Supabase setup
 

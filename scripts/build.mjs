@@ -8,7 +8,7 @@ await ensureQuestionImages();
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 
-for (const file of ["index.html", "app.js", "i18n.js", "sync.js", "question-capture.js", "quiz-session.js", "supabase-config.js", "styles.css", ".nojekyll"]) {
+for (const file of ["index.html", "app.js", "i18n.js", "sync.js", "question-capture.js", "quiz-session.js", "profile-data.js", "study-activity.js", "supabase-config.js", "styles.css", ".nojekyll"]) {
   await cp(new URL(file, root), new URL(file, dist));
 }
 

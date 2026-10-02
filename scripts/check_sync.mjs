@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createSyncController, generateSyncKey, incrementAnswerCounts, isValidSyncKey, mergeProfiles } from "../sync.js";
+import { answersOnDay, recordStudyActivity } from "../study-activity.js";
 
 const local = {
   startedAt: "2026-07-01T08:00:00.000Z",
@@ -124,14 +125,20 @@ assert.equal(b.browser.location.hash, "#dashboard", "The device key must leave t
 await b.controller.initialize();
 assert.equal(b.get().uiLanguage, "ru", "A fresh device must inherit cloud preferences");
 assert.deepEqual(b.get().questionProgress, a.get().questionProgress);
-a.set({ ...a.get(), updatedAt: "2026-09-30T12:00:00.000Z", questionProgress: { q1: incrementAnswerCounts(a.get().questionProgress.q1, true, "mac") } });
-b.set({ ...b.get(), updatedAt: "2026-09-30T12:00:00.000Z", questionProgress: { q1: incrementAnswerCounts(b.get().questionProgress.q1, false, "phone") } });
+const activityDate = new Date("2026-09-30T12:00:00.000Z");
+const macProfile = { ...a.get(), updatedAt: "2026-09-30T12:00:00.000Z", questionProgress: { q1: incrementAnswerCounts(a.get().questionProgress.q1, true, "mac") } };
+const phoneProfile = { ...b.get(), updatedAt: "2026-09-30T12:00:00.000Z", questionProgress: { q1: incrementAnswerCounts(b.get().questionProgress.q1, false, "phone") } };
+recordStudyActivity(macProfile, "mac", activityDate);
+recordStudyActivity(phoneProfile, "phone", activityDate);
+a.set(macProfile);
+b.set(phoneProfile);
 await a.controller.syncNow();
 await b.controller.syncNow();
 await a.controller.syncNow();
 assert.equal(a.get().questionProgress.q1.correct, 3);
 assert.equal(a.get().questionProgress.q1.wrong, 1);
 assert.deepEqual(a.get(), b.get());
+assert.equal(answersOnDay(a.get(), activityDate), 2, "Offline daily activity from both devices must reach the same profile");
 
 a.set({ ...a.get(), dailyGoal: 40, updatedAt: "2026-09-30T13:00:00.000Z" });
 injectConflict = true;
@@ -148,14 +155,18 @@ const c = createDevice({ ...copy(local), questionProgress: {}, sessions: [] });
 await c.controller.initialize();
 assert.notEqual(c.controller.getSyncKey(), key);
 assert.deepEqual(c.get().questionProgress, {}, "Different private keys must not see another profile");
+const activityBeforeFlight = answersOnDay(a.get(), activityDate);
 const answerWhileFetching = () => {
-  a.set({ ...a.get(), updatedAt: "2026-09-30T14:00:00.000Z", questionProgress: { ...a.get().questionProgress, q1: incrementAnswerCounts(a.get().questionProgress.q1, true, "mac") } });
+  const current = { ...a.get(), updatedAt: "2026-09-30T14:00:00.000Z", questionProgress: { ...a.get().questionProgress, q1: incrementAnswerCounts(a.get().questionProgress.q1, true, "mac") } };
+  recordStudyActivity(current, "mac", activityDate);
+  a.set(current);
   a.controller.schedule();
 };
 duringRead = answerWhileFetching;
 await a.controller.syncNow();
 assert.equal(a.get().questionProgress.q1.correct, 4, "An answer made during a read must stay local");
 assert.equal(server.get(key).profile.questionProgress.q1.correct, 4, "An answer made during a read must reach the cloud");
+assert.equal(answersOnDay(server.get(key).profile, activityDate), activityBeforeFlight + 1, "Daily activity made during a read must reach the cloud");
 a.set({ ...a.get(), dailyGoal: 50, updatedAt: "2026-09-30T14:00:00.000Z" });
 duringWrite = answerWhileFetching;
 await a.controller.syncNow();
@@ -163,10 +174,12 @@ assert.equal(a.get().questionProgress.q1.correct, 5, "An answer made during a wr
 assert.equal(a.controller.getState().status, "pending");
 await a.controller.syncNow();
 assert.equal(server.get(key).profile.questionProgress.q1.correct, 5, "Queued in-flight answers must reach the cloud");
+assert.equal(answersOnDay(server.get(key).profile, activityDate), activityBeforeFlight + 2, "Queued in-flight daily activity must reach the cloud once");
 a.set({ ...reset, resetAt: "2026-09-30T15:00:00.000Z", updatedAt: "2026-09-30T15:00:00.000Z" });
 await a.controller.syncNow();
 await b.controller.syncNow();
 assert.deepEqual(b.get().questionProgress, {}, "A stale linked device must accept a synced reset");
 assert.deepEqual(server.get(key).profile.sessions, [], "A stale linked device must not restore reset sessions");
+assert.equal(answersOnDay(b.get(), activityDate), 0, "A stale linked device must not restore reset daily activity");
 [a, b, c].forEach(device => device.controller.destroy());
 process.stdout.write("Personal sync checks passed: pairing, offline counters, conflicts, in-flight answers, reset, isolation, and migration.\n");

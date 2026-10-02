@@ -27,6 +27,9 @@ jobs:
       - name: Validate question data
         run: npm run check
 
+      - name: Validate backup recovery and reviewed study content
+        run: npm run check:backup && npm run check:content
+
       - name: Validate cloud merge behaviour
         run: npm run check:sync
 
@@ -34,7 +37,7 @@ jobs:
         run: npm run check:capture
 
       - name: Validate question navigation
-        run: npm run check:quiz
+        run: npm run check:quiz && npm run check:study
 
       - name: Cache public question images
         uses: actions/cache@v4

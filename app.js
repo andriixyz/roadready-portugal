@@ -1,11 +1,15 @@
-import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20260930-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261001-1";
+import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261002-2";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261002-5";
 import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261001-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
+import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261002-2";
+import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const main = $("#mainContent");
+const SESSION_LIMITS = { quick: 10, review: 20, mistakes: 20, exam: 30 };
+let topicOrder = "weakest";
 
 const TOPIC_NAMES = {
   "Cedência de passagem": { en: "Right of way", ru: "Право преимущественного проезда" },
@@ -68,11 +72,14 @@ const defaultProfile = () => ({
   language: "en",
   questionProgress: {},
   sessions: [],
-  streak: 1,
+  answerActivity: {},
+  streak: 0,
 });
 const PROFILE_KEY = "roadready-profile";
+const RECOVERY_KEY = "roadready-profile-recovery";
 const deviceId = getDeviceId();
 
+let recoveredStoredProfile = false;
 let profile = loadProfile();
 let questions = [];
 let corpusMeta = { count: 0, generatedAt: null };
@@ -87,23 +94,24 @@ let syncState = {
   messageKey: "sync.localReady",
 };
 
-function normaliseProfile(value = {}) {
-  const language = ["en", "ru", "pt"].includes(value.language) ? value.language : "en";
-  return {
-    ...defaultProfile(),
-    ...value,
-    uiLanguage: normalizeLanguage(value.uiLanguage || (language === "ru" ? "ru" : "en")),
-    language,
-    questionProgress: { ...(value.questionProgress || {}) },
-    sessions: Array.isArray(value.sessions) ? value.sessions.slice(-100) : [],
-  };
-}
+function normaliseProfile(value) { return normaliseStudyProfile(value, defaultProfile()); }
 function loadProfile() {
+  let saved, parsed;
   try {
-    const saved = localStorage.getItem(PROFILE_KEY);
-    return saved ? normaliseProfile(JSON.parse(saved)) : { ...defaultProfile(), updatedAt: null };
+    saved = localStorage.getItem(PROFILE_KEY);
+    if (!saved) return { ...defaultProfile(), updatedAt: null };
+    parsed = JSON.parse(saved);
+    return normaliseProfile(parsed);
   }
-  catch { return defaultProfile(); }
+  catch {
+    if (!saved) return defaultProfile();
+    recoveredStoredProfile = true;
+    // Keep the damaged original for recovery even after later answers or sync.
+    try {
+      if (!localStorage.getItem(RECOVERY_KEY)) localStorage.setItem(RECOVERY_KEY, saved);
+    } catch { /* Recovery must still work when storage is full. */ }
+    return recoverStudyProfile(parsed, defaultProfile());
+  }
 }
 function saveProfile({ sync = true } = {}) {
   profile.updatedAt = new Date().toISOString();
@@ -131,7 +139,8 @@ const formatStoredCount = (count, base, englishOne, englishMany) => profile.uiLa
   : `${formatNumber(count)} ${count === 1 ? englishOne : englishMany}`;
 const formatQuestionCount = (count) => formatStoredCount(count, "storage.question", "question", "questions");
 const formatSessionCount = (count) => formatStoredCount(count, "storage.session", "session", "sessions");
-const formatDayCount = (count) => profile.uiLanguage === "ru" ? t("unit.days", { count: formatNumber(count) }) : `${formatNumber(count)} day${count === 1 ? "" : "s"}`;
+const formatDayCount = (count) => formatStoredCount(count, "unit.day", "day", "days");
+const formatAttemptCount = (count) => formatStoredCount(count, "unit.attempt", "attempt", "attempts");
 const formatMinuteCount = (count) => {
   if (profile.uiLanguage !== "ru") return `${formatNumber(count)} minute${count === 1 ? "" : "s"}`;
   const absolute = Math.abs(count) % 100;
@@ -168,7 +177,7 @@ async function ensureRussianCorpus() {
   if (questions.length && questions.every((question) => question.text?.ru && question.explanation?.ru && question.answers.every((answer) => answer.ru))) return true;
   if (corpusMeta.sample && questions.every((question) => question.text?.ru && question.answers.every((answer) => answer.ru))) return true;
   if (!russianCorpusPromise) russianCorpusPromise = (async () => {
-    const response = await fetch("public/data/questions-ru.json?v=20260731-1");
+    const response = await fetch("public/data/questions-ru.json?v=20261002-1");
     if (!response.ok) throw new Error(`Russian corpus request failed: ${response.status}`);
     const data = await response.json();
     const overlayEntries = Array.isArray(data.questions)
@@ -193,7 +202,7 @@ async function ensureRussianCorpus() {
 }
 
 async function loadCorpus() {
-  for (const url of ["public/data/questions-en.json?v=20260731-1", "public/data/questions-pt.json?v=20260731-1"]) {
+  for (const url of ["public/data/questions-en.json?v=20261002-1", "public/data/questions-pt.json?v=20260731-1"]) {
     try {
       const response = await fetch(url);
       if (!response.ok) continue;
@@ -216,15 +225,16 @@ function getStats() {
   const correct = entries.reduce((sum, item) => sum + (item.correct || 0), 0);
   const wrong = entries.reduce((sum, item) => sum + (item.wrong || 0), 0);
   const accuracy = correct + wrong ? Math.round((correct / (correct + wrong)) * 100) : 0;
-  const due = entries.filter((item) => !item.nextReview || new Date(item.nextReview) <= new Date()).length;
-  const mistakes = entries.filter((item) => (item.wrong || 0) > (item.correct || 0)).length;
+  const due = dueQuestions().length;
+  const mistakes = mistakeQuestions().length;
   const examSessions = profile.sessions.filter((item) => item.mode === "exam").slice(-5);
   const mock = examSessions.length ? examSessions.reduce((sum, item) => sum + item.percent, 0) / examSessions.length : 0;
   const coverage = questions.length ? (seen / questions.length) * 100 : 0;
   const readiness = Math.round(clamp(coverage * .35 + accuracy * .35 + mock * .3, seen ? 8 : 0, 100));
-  const today = new Date().toDateString();
-  const todayAnswered = profile.sessions.filter((item) => new Date(item.completedAt).toDateString() === today).reduce((sum, item) => sum + item.total, 0);
-  return { seen, correct, wrong, accuracy, due, mistakes, readiness, coverage, mock: Math.round(mock), todayAnswered };
+  const today = new Date();
+  const todayAnswered = answersOnDay(profile, today);
+  const streak = studyStreak(profile, today);
+  return { seen, correct, wrong, accuracy, due, mistakes, readiness, coverage, mock: Math.round(mock), todayAnswered, streak };
 }
 
 function setActiveRoute(route) {
@@ -233,6 +243,10 @@ function setActiveRoute(route) {
 
 function render() {
   let route = location.hash.replace("#", "") || "dashboard";
+  if (route !== "quiz" && session && !session.result && !confirmLeaveSession()) {
+    route = "quiz";
+    history.replaceState(null, "", "#quiz");
+  }
   if (route === "quiz" && !session) {
     route = "dashboard";
     history.replaceState(null, "", "#dashboard");
@@ -247,11 +261,15 @@ function render() {
   else if (route === "quiz" && session?.result) renderResult(session, session.result);
   else if (route === "quiz" && session) renderQuestion();
   else renderDashboard();
-  main.focus({ preventScroll: true });
+  if (modal.hidden) main.focus({ preventScroll: true });
 }
 
 function renderDashboard() {
   const s = getStats();
+  const routeMode = s.due ? "review" : "quick";
+  const routeCount = sessionSize(routeMode);
+  const quickCount = formatQuestionCount(sessionSize("quick"));
+  const examCount = formatQuestionCount(sessionSize("exam"));
   const dailyPercent = Math.round(clamp((s.todayAnswered / profile.dailyGoal) * 100, 0, 100));
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t("dashboard.morning") : hour < 18 ? t("dashboard.afternoon") : t("dashboard.evening");
@@ -265,10 +283,10 @@ function renderDashboard() {
         <article class="card route-card">
           <div>
             <span class="eyebrow">${t("dashboard.todayRoute")}</span>
-            <h2>${s.due ? t("dashboard.reviewFade") : t("dashboard.learnNew")}</h2>
-            <p>${s.due ? t("dashboard.dueDescription", { count: formatQuestionCount(s.due) }) : t("dashboard.spacingDescription")}</p>
-            <div class="route-meta"><span><strong>${formatQuestionCount(s.due || 15)}</strong></span><span><strong>≈ ${formatMinuteCount(Math.ceil((s.due || 15) * .7))}</strong></span><span><strong>${formatNumber(s.todayAnswered)}/${formatNumber(profile.dailyGoal)}</strong> ${t("dashboard.dailyGoal")}</span></div>
-            <button class="button button-accent" data-start="${s.due ? "review" : "quick"}">${s.due ? t("dashboard.reviewNow") : t("dashboard.startToday")} →</button>
+            <h2>${s.due ? t("dashboard.reviewFade") : t("dashboard.learnNew", { questions: quickCount })}</h2>
+            <p>${s.due ? t(s.due === 1 ? "dashboard.dueDescription.one" : "dashboard.dueDescription", { count: formatQuestionCount(s.due) }) : t("dashboard.spacingDescription")}</p>
+            <div class="route-meta"><span><strong>${formatQuestionCount(routeCount)}</strong></span><span><strong>≈ ${formatMinuteCount(Math.ceil(routeCount * .7))}</strong></span><span><strong>${formatNumber(s.todayAnswered)}/${formatNumber(profile.dailyGoal)}</strong> ${t("dashboard.dailyGoal")}</span></div>
+            <button class="button button-accent" data-start="${routeMode}">${s.due ? t("dashboard.reviewNow") : t("dashboard.startToday")} →</button>
           </div>
           <div class="progress-ring" style="--progress:${dailyPercent}"><span>${dailyPercent}%<small>${t("dashboard.today")}</small></span></div>
         </article>
@@ -283,17 +301,17 @@ function renderDashboard() {
 
       <div class="section-heading"><div><h2>${t("dashboard.nextMoves")}</h2><p>${t("dashboard.nextMovesDescription")}</p></div><a class="text-link" href="#practice">${t("dashboard.allModes")}</a></div>
       <section class="task-grid">
-        <article class="task-card"><div class="task-top"><span class="task-icon">01</span><span class="mode-kicker">${t("dashboard.learn")}</span></div><h3>${t("dashboard.newQuestions")}</h3><p>${t("dashboard.newQuestionsDescription")}</p><button data-start="quick">${t("dashboard.startQuick")}</button></article>
+        <article class="task-card"><div class="task-top"><span class="task-icon">01</span><span class="mode-kicker">${t("dashboard.learn")}</span></div><h3>${t("dashboard.newQuestions")}</h3><p>${t("dashboard.newQuestionsDescription", { questions: quickCount })}</p><button data-start="quick">${t("dashboard.startQuick")}</button></article>
         <article class="task-card"><div class="task-top"><span class="task-icon">↻</span><span class="mode-kicker">${t("dashboard.recall")}</span></div><h3>${t("dashboard.dueForReview", { count: formatNumber(s.due) })}</h3><p>${t("dashboard.intervals")}</p><button data-start="review">${t("dashboard.reviewDue")}</button></article>
-        <article class="task-card"><div class="task-top"><span class="task-icon">30</span><span class="mode-kicker">${t("dashboard.simulate")}</span></div><h3>${t("dashboard.officialMock")}</h3><p>${t("dashboard.mockDescription")}</p><button data-start="exam">${t("dashboard.startMock")}</button></article>
+        <article class="task-card"><div class="task-top"><span class="task-icon">${formatNumber(sessionSize("exam"))}</span><span class="mode-kicker">${t("dashboard.simulate")}</span></div><h3>${t("dashboard.officialMock")}</h3><p>${t("dashboard.mockDescription", { questions: examCount })}</p><button data-start="exam">${t("dashboard.startMock")}</button></article>
       </section>
 
       <div class="section-heading"><h2>${t("dashboard.glance")}</h2><a class="text-link" href="#progress">${t("dashboard.detailedProgress")}</a></div>
       <section class="stat-grid">
         <article class="card stat-card"><span>${t("dashboard.questionsSeen")}</span><strong>${formatNumber(s.seen)}</strong><small>${t("unit.of", { count: formatNumber(questions.length) })}</small></article>
-        <article class="card stat-card"><span>${t("dashboard.accuracy")}</span><strong>${s.accuracy}%</strong><small>${t("unit.attempts", { count: formatNumber(s.correct + s.wrong) })}</small></article>
+        <article class="card stat-card"><span>${t("dashboard.accuracy")}</span><strong>${s.accuracy}%</strong><small>${formatAttemptCount(s.correct + s.wrong)}</small></article>
         <article class="card stat-card"><span>${t("dashboard.mistakes")}</span><strong>${formatNumber(s.mistakes)}</strong><small>${t("dashboard.mistakesHelp")}</small></article>
-        <article class="card stat-card"><span>${t("dashboard.streak")}</span><strong>${formatDayCount(profile.streak)}</strong><small>${t("dashboard.streakHelp")}</small></article>
+        <article class="card stat-card"><span>${t("dashboard.streak")}</span><strong>${formatDayCount(s.streak)}</strong><small>${t("dashboard.streakHelp")}</small></article>
       </section>
     </div>`;
   bindStartButtons();
@@ -303,12 +321,12 @@ function renderPractice() {
   const s = getStats();
   main.innerHTML = `
     <div class="page">
-      <header class="page-header"><div><span class="eyebrow">${t("practice.eyebrow")}</span><h1>${t("practice.title")}</h1><p>${t("practice.subtitle")}</p></div><span class="date-chip">${t("practice.loaded", { count: formatNumber(questions.length) })}</span></header>
+      <header class="page-header"><div><span class="eyebrow">${t("practice.eyebrow")}</span><h1>${t("practice.title")}</h1><p>${t("practice.subtitle")}</p></div><span class="date-chip">${t("practice.loaded", { questions: formatQuestionCount(questions.length) })}</span></header>
       <section class="mode-grid">
-        <article class="card mode-card featured"><span class="mode-badge">${t("practice.recommended")}</span><span class="mode-kicker">${t("practice.quickMeta")}</span><h3>${t("practice.quickTitle")}</h3><p>${t("practice.quickDescription")}</p><button class="button button-accent" data-start="quick">${t("practice.start")}</button></article>
+        <article class="card mode-card featured"><span class="mode-badge">${t("practice.recommended")}</span><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("quick")) })}</span><h3>${t("practice.quickTitle")}</h3><p>${t("practice.quickDescription")}</p><button class="button button-accent" data-start="quick">${t("practice.start")}</button></article>
         <article class="card mode-card"><span class="mode-badge">${t("practice.available", { count: formatNumber(s.due) })}</span><span class="mode-kicker">${t("practice.spaced")}</span><h3>${t("practice.dueTitle")}</h3><p>${t("practice.dueDescription")}</p><button class="button button-primary" data-start="review">${t("dashboard.reviewDue")}</button></article>
-        <article class="card mode-card"><span class="mode-badge">${t("practice.weakSpots", { count: formatNumber(s.mistakes) })}</span><span class="mode-kicker">${t("practice.repair")}</span><h3>${t("practice.clinic")}</h3><p>${t("practice.clinicDescription")}</p><button class="button button-secondary" data-start="mistakes">${t("practice.fix")}</button></article>
-        <article class="card mode-card"><span class="mode-badge">${t("practice.pass")}</span><span class="mode-kicker">${t("practice.examMeta")}</span><h3>${t("practice.mockTitle")}</h3><p>${t("practice.mockFullDescription")}</p><button class="button button-primary" data-start="exam">${t("practice.startTimed")}</button></article>
+        <article class="card mode-card"><span class="mode-badge">${t(s.mistakes === 1 ? "practice.weakSpots.one" : "practice.weakSpots", { count: formatNumber(s.mistakes) })}</span><span class="mode-kicker">${t("practice.repair")}</span><h3>${t("practice.clinic")}</h3><p>${t("practice.clinicDescription")}</p><button class="button button-secondary" data-start="mistakes">${t("practice.fix")}</button></article>
+        <article class="card mode-card"><span class="mode-badge">${t("practice.pass", { correct: formatNumber(Math.max(0, sessionSize("exam") - 3)), total: formatNumber(sessionSize("exam")) })}</span><span class="mode-kicker">${t("practice.examMeta", { questions: formatQuestionCount(sessionSize("exam")) })}</span><h3>${t("practice.mockTitle")}</h3><p>${t("practice.mockFullDescription")}</p><button class="button button-primary" data-start="exam">${t("practice.startTimed")}</button></article>
       </section>
       <div class="section-heading"><div><h2>${t("practice.strategy")}</h2><p>${t("practice.strategyDescription")}</p></div></div>
       <section class="study-plan">
@@ -320,31 +338,60 @@ function renderPractice() {
   bindStartButtons();
 }
 
+function dueQuestions(now = Date.now()) {
+  return questions.filter((question) => {
+    const progress = profile.questionProgress[question.id];
+    return progress && (!progress.nextReview || Date.parse(progress.nextReview) <= now);
+  });
+}
+
 function selectForMode(mode) {
-  const now = new Date();
   if (mode === "review") {
-    const due = questions.filter((q) => { const p = profile.questionProgress[q.id]; return p && (!p.nextReview || new Date(p.nextReview) <= now); });
-    return shuffle(due.length ? due : questions.filter((q) => profile.questionProgress[q.id])).slice(0, 20);
+    return shuffle(dueQuestions()).slice(0, SESSION_LIMITS.review);
   }
   if (mode === "mistakes") {
-    const missed = questions.filter((q) => { const p = profile.questionProgress[q.id]; return p && (p.wrong || 0) > (p.correct || 0); });
-    return shuffle(missed.length ? missed : questions.filter((q) => profile.questionProgress[q.id]?.wrong)).slice(0, 20);
+    return shuffle(mistakeQuestions()).slice(0, SESSION_LIMITS.mistakes);
   }
-  if (mode === "exam") return shuffle(questions).slice(0, Math.min(30, questions.length));
+  if (mode === "exam") return shuffle(questions).slice(0, sessionSize("exam"));
   const unseen = shuffle(questions.filter((q) => !profile.questionProgress[q.id]));
   const seen = shuffle(questions.filter((q) => profile.questionProgress[q.id]));
-  return [...unseen, ...seen].slice(0, Math.min(10, questions.length));
+  return [...unseen, ...seen].slice(0, sessionSize("quick"));
+}
+
+function mistakeQuestions() {
+  return questions.filter((question) => {
+    const progress = profile.questionProgress[question.id];
+    return progress && (progress.wrong || 0) > (progress.correct || 0);
+  });
+}
+
+function sessionSize(mode) {
+  const available = mode === "review" ? dueQuestions().length : mode === "mistakes" ? mistakeQuestions().length : questions.length;
+  return Math.min(SESSION_LIMITS[mode], available);
 }
 
 function startSession(mode) {
   const selected = selectForMode(mode);
-  if (!selected.length) { showToast(mode === "review" ? t("practice.nothingDue") : t("practice.answerFirst")); return; }
+  if (!selected.length) { showToast(t(mode === "review" ? "practice.nothingDue" : mode === "mistakes" ? "practice.noMistakes" : "practice.answerFirst")); return; }
   session = createQuizSession(mode, selected, profile.language);
   location.hash = "quiz";
   renderQuestion();
+  scrollQuizIntoView();
+}
+
+function scrollQuizIntoView() {
+  if (modal.hidden && window.matchMedia?.("(max-width: 720px)")?.matches) main.scrollIntoView({ block: "start" });
 }
 
 function bindStartButtons() { $$('[data-start]').forEach((button) => button.addEventListener("click", () => startSession(button.dataset.start))); }
+
+function explanationSourceLink(question) {
+  return question.explanationSource ? `<a class="text-link rule-source-link" href="${escapeHtml(question.explanationSource)}" target="_blank" rel="noopener noreferrer">${t("quiz.ruleSource")} ↗</a>` : "";
+}
+
+function confirmLeaveSession() {
+  return confirm(t(session.mode === "exam" ? "quiz.leaveExamConfirm" : "quiz.leaveConfirm"));
+}
 
 function renderQuestion() {
   if (!session) { location.hash = "practice"; return; }
@@ -365,7 +412,8 @@ function renderQuestion() {
       <div class="quiz-topbar"><button class="icon-button" id="exitQuiz" aria-label="${t("quiz.exit")}">×</button><div class="quiz-progress" style="--value:${progress}%"><span></span></div><span class="quiz-counter">${session.mode === "exam" ? `<b id="timer">${formatTime(session.remaining)}</b> · ` : ""}${t("quiz.counter", { current: formatNumber(session.index + 1), total: formatNumber(session.questions.length) })}</span></div>
       <nav class="quiz-navigation" aria-label="${t("quiz.navigation")}">
         <div class="quiz-navigation-controls"><button class="button button-secondary" id="quizPrevious" ${session.index === 0 ? "disabled" : ""}>← ${t("quiz.previous")}</button><span class="quiz-navigation-status" role="status">${t("quiz.answeredCount", { count: formatNumber(session.answers.filter(Boolean).length), total: formatNumber(session.questions.length) })}</span><button class="button button-secondary" id="quizNext" ${isLast ? "disabled" : ""}>${t("quiz.next")} →</button></div>
-        <div class="quiz-question-list">${session.questions.map((_, index) => {
+        <button class="button button-secondary quiz-nav-toggle" id="toggleQuizNumbers" type="button" aria-controls="quizQuestionList" aria-expanded="${Boolean(session.navigationExpanded)}">${t(session.navigationExpanded ? "quiz.hideQuestions" : "quiz.showQuestions")}</button>
+        <div class="quiz-question-list ${session.navigationExpanded ? "" : "is-collapsed"}" id="quizQuestionList">${session.questions.map((_, index) => {
           const status = session.answers[index] ? "answered" : session.picks[index] ? "draft" : "unanswered";
           return `<button type="button" class="quiz-question-number ${status}" data-question-index="${index}" ${index === session.index ? 'aria-current="step"' : ""} aria-label="${t("quiz.questionStatus", { number: formatNumber(index + 1), status: t(`quiz.status.${status}`) })}">${formatNumber(index + 1)}</button>`;
         }).join("")}</div>
@@ -382,7 +430,7 @@ function renderQuestion() {
             const marker = checked && answer.key === q.correct ? "✓" : checked && selected ? "×" : "";
             return `<button class="answer-option ${status}" data-answer="${answer.key}" aria-pressed="${selected}" ${checked ? "disabled" : ""}><span class="answer-key">${i + 1}</span><span>${escapeHtml(answer[language] || answer.en || answer.pt)}</span><span class="answer-marker">${marker}</span></button>`;
           }).join("")}</div>
-          ${session.checked && session.mode !== "exam" ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: q.correct })}</strong></div><p>${escapeHtml(explanation)}</p><small>${session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
+          ${session.checked && session.mode !== "exam" ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: q.correct })}</strong></div><p>${escapeHtml(explanation)}</p>${explanationSourceLink(q)}<small>${session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
           <div class="quiz-actions"><span class="quiz-hint">${t("quiz.keyboardHint")}</span><button class="button ${session.checked ? "button-primary" : "button-accent"}" id="quizPrimary" ${session.selected ? "" : "disabled"}>${session.mode === "exam" || session.checked ? advanceLabel : t("quiz.check")} →</button></div>
           <div class="question-capture-actions"><button class="button button-primary" id="askChatGPT" type="button">${t("quiz.askChatGPT")} ↗</button><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="copyQuestionPrompt" type="button">${t("quiz.copyPrompt")}</button><button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button><a class="button button-ghost" id="chatGPTOpenLink" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" hidden>${t("quiz.openChatGPT")} ↗</a></div>
           <p class="capture-status" id="questionCaptureStatus" role="status">${t("quiz.chatGPTHint")}</p>
@@ -390,12 +438,18 @@ function renderQuestion() {
         </div>
       </article>
     </div>`;
-  $("#exitQuiz").addEventListener("click", () => { if (confirm(t("quiz.leaveConfirm"))) location.hash = "practice"; });
+  $("#exitQuiz").addEventListener("click", () => { location.hash = "practice"; });
   $$('[data-lang]').forEach((button) => button.addEventListener("click", () => { void setQuestionLanguage(button.dataset.lang); }));
   $$("[data-answer]").forEach((button) => button.addEventListener("click", () => chooseAnswer(button.dataset.answer)));
   $("#quizPrimary").addEventListener("click", advanceQuiz);
   $("#quizPrevious").addEventListener("click", () => navigateQuestion(session.index - 1));
   $("#quizNext").addEventListener("click", () => navigateQuestion(session.index + 1));
+  $("#toggleQuizNumbers").addEventListener("click", () => {
+    session.navigationExpanded = !session.navigationExpanded;
+    $("#quizQuestionList").classList.toggle("is-collapsed", !session.navigationExpanded);
+    $("#toggleQuizNumbers").setAttribute("aria-expanded", String(session.navigationExpanded));
+    $("#toggleQuizNumbers").textContent = t(session.navigationExpanded ? "quiz.hideQuestions" : "quiz.showQuestions");
+  });
   $$("[data-question-index]").forEach((button) => button.addEventListener("click", () => navigateQuestion(Number(button.dataset.questionIndex))));
   bindQuestionCapture(q, language);
   const img = $(".question-visual img");
@@ -515,7 +569,9 @@ function chooseAnswer(key) {
 
 function navigateQuestion(index) {
   if (!moveToQuestion(session, index)) return;
+  session.navigationExpanded = false;
   renderQuestion();
+  scrollQuizIntoView();
   const heading = $(".question-body h1");
   if (heading) {
     heading.tabIndex = -1;
@@ -542,12 +598,14 @@ function advanceQuiz() {
 }
 
 function recordQuestion(question, isCorrect) {
+  const now = new Date();
   const current = profile.questionProgress[question.id] || { correct: 0, wrong: 0, streak: 0 };
   const streak = isCorrect ? (current.streak || 0) + 1 : 0;
   const intervals = [1, 3, 7, 14, 30];
   const days = isCorrect ? intervals[Math.min(streak - 1, intervals.length - 1)] : 0;
-  const nextReview = new Date(Date.now() + days * 86400000).toISOString();
-  profile.questionProgress[question.id] = { ...incrementAnswerCounts(current, isCorrect, deviceId), streak, lastAnswer: new Date().toISOString(), nextReview };
+  const nextReview = new Date(now.getTime() + days * 86400000).toISOString();
+  profile.questionProgress[question.id] = { ...incrementAnswerCounts(current, isCorrect, deviceId), streak, lastAnswer: now.toISOString(), nextReview };
+  recordStudyActivity(profile, deviceId, now);
   saveProfile();
 }
 
@@ -565,26 +623,49 @@ function finishSession() {
     percent: Math.round((correct / total) * 100),
     completedAt: new Date().toISOString(),
     durationSeconds: Math.round((Date.now() - session.startedAt) / 1000),
+    activityRecorded: true,
   };
   profile.sessions = [...profile.sessions, result].slice(-100);
   const finished = session;
   session = { ...session, result };
   saveProfile();
   renderResult(finished, result);
+  if (modal.hidden) {
+    const heading = $(".result-card h1");
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+    main.scrollIntoView({ block: "start", behavior: "instant" });
+  }
 }
 
 function renderResult(finished, result) {
   const errors = result.total - result.correct;
+  const errorLabel = t(profile.uiLanguage === "ru" ? russianPluralKey(errors, "result.errors") : errors === 1 ? "result.errors.one" : "result.errors");
   const passed = finished.mode === "exam" ? errors <= 3 : result.percent >= 80;
   const missed = finished.questions.map((question, index) => ({ question, answer: finished.answers[index] })).filter(({ answer }) => !answer?.correct);
   const language = finished.questionLanguage || profile.language || "en";
-  const review = missed.length ? `<section class="result-review"><div class="section-heading"><div><h2>${t("result.review")}</h2><p>${t("result.reviewHelp")}</p></div></div>${missed.map(({ question }, index) => `<article class="card review-item"><span>${String(index + 1).padStart(2, "0")}</span><div><h3>${escapeHtml(question.text?.[language] || question.text.en || question.text.pt)}</h3><p>${escapeHtml(question.explanation?.[language] || question.explanation?.[profile.uiLanguage] || question.explanation?.en || t("result.correctFallback", { answer: question.correct }))}</p></div></article>`).join("")}</section>` : "";
+  const review = missed.length ? `<section class="result-review"><div class="section-heading"><div><h2>${t("result.review")}</h2><p>${t("result.reviewHelp")}</p></div></div>${missed.map(({ question, answer }) => renderReviewItem(question, answer, language)).join("")}</section>` : "";
   const summary = finished.mode === "exam"
     ? passed ? t("result.examPassed") : t("result.examFailed", { count: formatNumber(errors) })
     : t("result.practiceHelp");
-  main.innerHTML = `<div class="page"><article class="card result-card"><span class="eyebrow">${finished.mode === "exam" ? t("result.mockComplete") : t("result.practiceComplete")}</span><div class="result-orb">${formatNumber(result.correct)}/${formatNumber(result.total)}</div><h1>${passed ? t("result.strong") : t("result.useful")}</h1><p>${summary}</p><div class="result-stats"><div><strong>${result.percent}%</strong><span>${t("result.accuracy")}</span></div><div><strong>${formatNumber(errors)}</strong><span>${t("result.errors")}</span></div><div><strong>${formatMinuteCount(Math.ceil(result.durationSeconds / 60))}</strong><span>${t("result.time")}</span></div></div><div class="result-actions"><button class="button button-secondary" id="resultHome">${t("result.dashboard")}</button><button class="button button-primary" id="resultAgain">${t("result.again")}</button></div></article>${review}</div>`;
+  main.innerHTML = `<div class="page"><article class="card result-card"><span class="eyebrow">${finished.mode === "exam" ? t("result.mockComplete") : t("result.practiceComplete")}</span><div class="result-orb">${formatNumber(result.correct)}/${formatNumber(result.total)}</div><h1>${passed ? t("result.strong") : t("result.useful")}</h1><p>${summary}</p><div class="result-stats"><div><strong>${result.percent}%</strong><span>${t("result.accuracy")}</span></div><div><strong>${formatNumber(errors)}</strong><span>${errorLabel}</span></div><div><strong>${formatMinuteCount(Math.ceil(result.durationSeconds / 60))}</strong><span>${t("result.time")}</span></div></div><div class="result-actions"><button class="button button-secondary" id="resultHome">${t("result.dashboard")}</button><button class="button button-primary" id="resultAgain">${t("result.again")}</button></div></article>${review}</div>`;
   $("#resultHome").addEventListener("click", () => { session = null; location.hash = "dashboard"; });
   $("#resultAgain").addEventListener("click", () => startSession(finished.mode));
+  $$(".review-image img").forEach((image) => image.addEventListener("error", () => {
+    if (!image.dataset.remoteFallback) { image.dataset.remoteFallback = "true"; image.src = image.dataset.remoteImage; }
+  }));
+}
+
+function renderReviewItem(question, answer, language) {
+  const answerText = (key) => {
+    const option = question.answers.find((item) => item.key === key);
+    return option ? `${key} · ${option[language] || option.en || option.pt}` : t("result.noAnswer");
+  };
+  const id = question.sourceId || question.id;
+  const image = question.image
+    ? `<a class="review-image" href="${escapeHtml(question.image)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(t("quiz.openImage", { id }))}"><img src="${escapeHtml(getQuestionImagePath(question))}" data-remote-image="${escapeHtml(question.image)}" alt="${escapeHtml(t("quiz.imageAlt", { id }))}" loading="lazy" referrerpolicy="no-referrer" /></a>`
+    : `<div class="review-image-placeholder">${t("quiz.textOnly")}</div>`;
+  return `<article class="card review-item">${image}<div class="review-copy"><a class="text-link" href="${escapeHtml(question.sourceUrl)}" target="_blank" rel="noopener noreferrer">${t("quiz.source", { id })}</a><h3>${escapeHtml(question.text?.[language] || question.text.en || question.text.pt)}</h3><dl class="review-answers"><div><dt>${t("result.yourAnswer")}</dt><dd>${escapeHtml(answerText(answer?.pick))}</dd></div><div><dt>${t("result.studyAnswer")}</dt><dd>${escapeHtml(answerText(question.correct))}</dd></div></dl><p>${escapeHtml(question.explanation?.[language] || question.explanation?.[profile.uiLanguage] || question.explanation?.en || t("result.correctFallback", { answer: question.correct }))}</p>${explanationSourceLink(question)}</div></article>`;
 }
 
 function startTimer() {
@@ -604,16 +685,24 @@ function renderProgress() {
   const s = getStats();
   const last7 = Array.from({ length: 7 }, (_, offset) => {
     const date = new Date(); date.setDate(date.getDate() - (6 - offset));
-    const sessions = profile.sessions.filter((item) => new Date(item.completedAt).toDateString() === date.toDateString());
-    return { label: new Intl.DateTimeFormat(currentLocale(), { weekday: "short" }).format(date), count: sessions.reduce((sum, item) => sum + item.total, 0) };
+    return { label: new Intl.DateTimeFormat(currentLocale(), { weekday: "short" }).format(date), count: answersOnDay(profile, date) };
   });
   const max = Math.max(20, ...last7.map((day) => day.count));
   const topicStats = Object.entries(TOPIC_NAMES).map(([pt, names]) => {
     const topicQuestions = questions.filter((q) => q.topic === pt);
     const seen = topicQuestions.filter((q) => profile.questionProgress[q.id]).length;
-    return { name: names[profile.uiLanguage] || names.en, seen, total: topicQuestions.length, percent: topicQuestions.length ? Math.round((seen / topicQuestions.length) * 100) : 0 };
-  }).sort((a, b) => b.percent - a.percent);
-  main.innerHTML = `<div class="page"><header class="page-header"><div><span class="eyebrow">${t("progress.eyebrow")}</span><h1>${t("progress.title")}</h1><p>${t("progress.subtitle")}</p></div><span class="date-chip">${t("progress.seen", { count: formatNumber(s.seen) })}</span></header><section class="stat-grid"><article class="card stat-card"><span>${t("progress.readiness")}</span><strong>${s.readiness}%</strong><small>${t("progress.target85")}</small></article><article class="card stat-card"><span>${t("progress.coverage")}</span><strong>${Math.round(s.coverage)}%</strong><small>${formatNumber(s.seen)}/${formatNumber(questions.length)}</small></article><article class="card stat-card"><span>${t("progress.accuracy")}</span><strong>${s.accuracy}%</strong><small>${t("progress.target90")}</small></article><article class="card stat-card"><span>${t("progress.mockAverage")}</span><strong>${s.mock}%</strong><small>${t("progress.lastFive")}</small></article></section><div class="section-heading"><h2>${t("progress.activity")}</h2></div><section class="progress-layout"><article class="card chart-card"><h3>${t("progress.answered")}</h3><p>${t("progress.lastSeven")}</p><div class="bar-chart">${last7.map((day, i) => `<div class="bar ${i === 6 ? "active" : ""}" style="--height:${Math.max(3, (day.count / max) * 100)}%"><span>${day.label}</span></div>`).join("")}</div></article><article class="card coverage-card"><h3>${t("progress.syllabus")}</h3><p>${t("progress.topicsFirst")}</p><div class="topic-list">${topicStats.slice(0, 7).map((topic) => `<div class="topic-row"><strong>${escapeHtml(topic.name)}</strong><span>${formatNumber(topic.seen)}/${formatNumber(topic.total)}</span><div class="meter" style="--value:${topic.percent}%"><span></span></div></div>`).join("")}</div></article></section></div>`;
+    const correct = topicQuestions.reduce((sum, question) => sum + (profile.questionProgress[question.id]?.correct || 0), 0);
+    const wrong = topicQuestions.reduce((sum, question) => sum + (profile.questionProgress[question.id]?.wrong || 0), 0);
+    const coverage = topicQuestions.length ? seen / topicQuestions.length : 0;
+    return { name: names[profile.uiLanguage] || names.en, seen, total: topicQuestions.length, coverage, percent: Math.round(coverage * 100), attempts: correct + wrong, accuracy: correct + wrong ? Math.round(correct / (correct + wrong) * 100) : 0 };
+  }).sort((a, b) => (topicOrder === "coverage" ? b.coverage - a.coverage : a.coverage - b.coverage || a.accuracy - b.accuracy)
+    || a.name.localeCompare(b.name, currentLocale()));
+  main.innerHTML = `<div class="page"><header class="page-header"><div><span class="eyebrow">${t("progress.eyebrow")}</span><h1>${t("progress.title")}</h1><p>${t("progress.subtitle")}</p></div><span class="date-chip">${t("progress.seen", { questions: formatQuestionCount(s.seen) })}</span></header><section class="stat-grid"><article class="card stat-card"><span>${t("progress.readiness")}</span><strong>${s.readiness}%</strong><small>${t("progress.target85")}</small></article><article class="card stat-card"><span>${t("progress.coverage")}</span><strong>${Math.round(s.coverage)}%</strong><small>${formatNumber(s.seen)}/${formatNumber(questions.length)}</small></article><article class="card stat-card"><span>${t("progress.accuracy")}</span><strong>${s.accuracy}%</strong><small>${t("progress.target90")}</small></article><article class="card stat-card"><span>${t("progress.mockAverage")}</span><strong>${s.mock}%</strong><small>${t("progress.lastFive")}</small></article></section><div class="section-heading"><h2>${t("progress.activity")}</h2></div><section class="progress-layout"><article class="card chart-card"><h3>${t("progress.answered")}</h3><p>${t("progress.lastSeven")}</p><div class="bar-chart">${last7.map((day, i) => `<div class="bar ${i === 6 ? "active" : ""}" style="--height:${Math.max(3, (day.count / max) * 100)}%" role="img" aria-label="${escapeHtml(day.label)}: ${formatQuestionCount(day.count)}"><span>${day.label}</span></div>`).join("")}</div></article><article class="card coverage-card"><h3>${t("progress.syllabus")}</h3><p>${t(topicOrder === "coverage" ? "progress.topicsCoveredFirst" : "progress.topicsFirst")}</p><label class="topic-sort" for="topicOrder">${t("progress.topicOrder")}<select id="topicOrder"><option value="weakest" ${topicOrder === "weakest" ? "selected" : ""}>${t("progress.weakestFirst")}</option><option value="coverage" ${topicOrder === "coverage" ? "selected" : ""}>${t("progress.coveredFirst")}</option></select></label><div class="topic-list">${topicStats.map((topic) => `<div class="topic-row"><strong>${escapeHtml(topic.name)}</strong><span>${formatNumber(topic.seen)}/${formatNumber(topic.total)}</span><small>${topic.attempts ? t("progress.topicAccuracy", { percent: formatNumber(topic.accuracy) }) : t("progress.notPracticed")}</small><div class="meter" style="--value:${topic.percent}%"><span></span></div></div>`).join("")}</div></article></section></div>`;
+  $("#topicOrder").addEventListener("change", (event) => {
+    topicOrder = event.target.value;
+    renderProgress();
+    if (modal.hidden) $("#topicOrder").focus({ preventScroll: true });
+  });
 }
 
 function renderSources() {
@@ -624,7 +713,8 @@ function renderSources() {
 function showToast(message) { const toast = $("#toast"); toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2600); }
 
 document.addEventListener("keydown", (event) => {
-  if (!session || session.result || location.hash !== "#quiz" || !modal.hidden) return;
+  if (!modal.hidden) { handleSettingsKey(event); return; }
+  if (!session || session.result || location.hash !== "#quiz") return;
   if (event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (["1", "2", "3", "4"].includes(event.key)) {
     const q = session.questions[session.index];
@@ -640,6 +730,11 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("hashchange", render);
+window.addEventListener("beforeunload", (event) => {
+  if (!session || session.result) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
 
 const modal = $("#settingsModal");
 async function setUILanguage(language) {
@@ -666,16 +761,43 @@ async function setUILanguage(language) {
   }
 }
 
-function openSettings() {
+let settingsOpener = null;
+function openSettings(event) {
+  settingsOpener = event?.currentTarget || document.activeElement;
   updateStorageSummary();
   updateSyncUI();
   $("#storageStatus").textContent = "";
   modal.hidden = false;
+  $("#app").inert = true;
+  document.body.classList.add("settings-open");
+  $("#closeSettings").focus();
+}
+function closeSettings() {
+  modal.hidden = true;
+  $("#app").inert = false;
+  document.body.classList.remove("settings-open");
+  (settingsOpener?.isConnected ? settingsOpener : main).focus({ preventScroll: true });
+}
+function handleSettingsKey(event) {
+  if (event.key === "Escape") { event.preventDefault(); closeSettings(); return; }
+  if (event.key !== "Tab") return;
+  const controls = $$("button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex='0']", modal)
+    .filter((element) => element.getClientRects().length);
+  const first = controls[0], last = controls.at(-1);
+  if (!first) { event.preventDefault(); $(".modal", modal).focus(); return; }
+  if (event.shiftKey && (document.activeElement === first || !controls.includes(document.activeElement))) {
+    event.preventDefault(); last.focus();
+  } else if (!event.shiftKey && (document.activeElement === last || !controls.includes(document.activeElement))) {
+    event.preventDefault(); first.focus();
+  }
 }
 $("#openSettings").addEventListener("click", openSettings);
 $("#mobileSettings").addEventListener("click", openSettings);
-$("#closeSettings").addEventListener("click", () => { modal.hidden = true; });
-modal.addEventListener("click", (event) => { if (event.target === modal) modal.hidden = true; });
+$("#closeSettings").addEventListener("click", closeSettings);
+modal.addEventListener("click", (event) => { if (event.target === modal) closeSettings(); });
+document.addEventListener("focusin", (event) => {
+  if (!modal.hidden && !modal.contains(event.target)) $("#closeSettings").focus();
+});
 
 function updateStorageSummary() {
   if (!$("#storageSummary")) return;
@@ -760,21 +882,29 @@ $("#importFile").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
   const status = $("#storageStatus");
+  let committed = false;
   try {
+    if (file.size > MAX_BACKUP_BYTES) throw new InvalidStudyProfileError();
     const parsed = JSON.parse(await file.text());
-    const incoming = parsed.profile || parsed;
-    if (!incoming || typeof incoming.questionProgress !== "object" || !Array.isArray(incoming.sessions)) throw new Error(t("storage.invalidBackup"));
-    if (parsed.syncKey && !isValidSyncKey(parsed.syncKey)) throw new Error(t("storage.invalidBackup"));
-    profile = normaliseProfile(incoming);
-    if (profile.uiLanguage === "ru" || profile.language === "ru") await ensureRussianCorpus();
-    saveProfile();
-    if (parsed.syncKey) await syncController.connect(parsed.syncKey);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new InvalidStudyProfileError();
+    const candidate = normaliseProfile(parsed.profile === undefined ? parsed : parsed.profile);
+    if (parsed.syncKey !== undefined && !isValidSyncKey(parsed.syncKey)) throw new InvalidStudyProfileError();
+    if (candidate.uiLanguage === "ru" || candidate.language === "ru") await ensureRussianCorpus();
+    candidate.updatedAt = new Date().toISOString();
+    // setItem is atomic. Validate/load everything first and commit to memory
+    // only once storage accepts the candidate, leaving the old profile intact
+    // on invalid data, translation failures or a full localStorage quota.
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(candidate));
+    profile = candidate;
+    committed = true;
     applyStaticTranslations();
     updateStorageSummary();
     render();
     status.textContent = t("storage.restoreSuccess");
+    if (parsed.syncKey) await syncController.connect(parsed.syncKey);
+    else syncController?.schedule();
   } catch (error) {
-    status.textContent = error.message === t("storage.invalidBackup") ? error.message : t("storage.restoreError");
+    status.textContent = t(committed ? "storage.restoreLocal" : error instanceof InvalidStudyProfileError ? "storage.invalidBackup" : "storage.restoreError");
   } finally {
     event.target.value = "";
   }
@@ -789,8 +919,9 @@ $("#resetData").addEventListener("click", async () => {
   profile = { ...defaultProfile(), ...preferences, resetAt: new Date().toISOString() };
   saveProfile();
   const cloudErased = isSynced && await syncController?.syncNow();
-  modal.hidden = true;
+  session = null;
   render();
+  closeSettings();
   showToast(isSynced ? t(cloudErased ? "storage.erasedSynced" : "storage.eraseQueued") : t("storage.erasedLocal"));
 });
 
@@ -799,6 +930,7 @@ applyStaticTranslations();
 await loadCorpus();
 $$('[data-ui-lang]').forEach((button) => button.addEventListener("click", () => { void setUILanguage(button.dataset.uiLang); }));
 render();
+if (recoveredStoredProfile) showToast(t("storage.recoveredProfile"));
 syncController = createSyncController({
   getProfile: () => profile,
   applyProfile: applySyncedProfile,

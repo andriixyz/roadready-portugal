@@ -4,6 +4,8 @@ import vm from "node:vm";
 import * as quiz from "../quiz-session.js";
 import { localeFor, normalizeLanguage, russianPluralKey, translate } from "../i18n.js";
 import { incrementAnswerCounts } from "../sync.js";
+import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "../profile-data.js";
+import { recordStudyActivity, answersOnDay, studyStreak } from "../study-activity.js";
 
 // Run the app's real handlers with an in-memory DOM and storage, without
 // loading the corpus or connecting a study profile to the network.
@@ -15,7 +17,7 @@ function node(selector) {
   if (!nodes.has(selector)) nodes.set(selector, {
     innerHTML: "", hidden: true, dataset: {}, listeners: {},
     addEventListener(type, callback) { this.listeners[type] = callback; },
-    setAttribute() {}, focus() {},
+    setAttribute() {}, focus() {}, scrollIntoView() {},
     classList: { add() {}, remove() {}, toggle() {} },
     style: { setProperty() {} },
   });
@@ -24,6 +26,8 @@ function node(selector) {
 const storage = new Map();
 const context = vm.createContext({
   ...quiz, localeFor, normalizeLanguage, russianPluralKey, translate, incrementAnswerCounts,
+  MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile,
+  recordStudyActivity, answersOnDay, studyStreak,
   getDeviceId: () => "test-device",
   document: {
     querySelector: node, querySelectorAll: () => [],
@@ -74,4 +78,12 @@ for (const mode of ["quick", "review", "mistakes", "exam"]) {
   assert.equal(run("Object.values(profile.questionProgress).reduce((sum, item) => sum + item.correct + item.wrong, 0)"), 3);
 }
 
-console.log("Quiz results checks passed: results submission, late renders, language updates, sync, and single recording in all four modes.");
+run(`questions = fixtureQuestions; questions[0].image = 'https://example.test/road.jpg';
+  questions[0].sourceUrl = 'https://example.test/question/1';
+  session = createQuizSession('exam', questions, 'en'); chooseAnswer('B'); finishSession();`);
+assert.ok(main.innerHTML.includes('class="review-image"'), "Missed image questions need the image in results");
+assert.ok(main.innerHTML.includes('Source question #1'));
+assert.ok(main.innerHTML.includes('<dt>Your answer</dt><dd>B · Wrong option</dd>'));
+assert.ok(main.innerHTML.includes('<dt>Study-key answer</dt><dd>A · Correct option</dd>'));
+assert.ok(main.innerHTML.includes('<dt>Your answer</dt><dd>Not answered</dd>'), "Unanswered mock items must be explicit");
+console.log("Quiz results checks passed: submission, late renders/language/sync, single recording, and image/source/chosen/unanswered review details.");

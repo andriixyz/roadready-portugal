@@ -1,4 +1,5 @@
 import { SUPABASE_CONFIG } from "./supabase-config.js";
+import { mergeAnswerActivity } from "./study-activity.js?v=20261002-2";
 
 const SYNC_KEY_STORAGE = "roadready-sync-key";
 const DEVICE_KEY_STORAGE = "roadready-device-id";
@@ -66,9 +67,9 @@ export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
   let local = clone(localProfile || {}), cloud = clone(cloudProfile || {});
   // A reset is a new history generation. Stale devices must not restore erased results.
   if (timestamp(local.resetAt) > timestamp(cloud.resetAt)) {
-    cloud = { ...cloud, questionProgress: {}, sessions: [], streak: 0, startedAt: local.startedAt, resetAt: local.resetAt };
+    cloud = { ...cloud, questionProgress: {}, sessions: [], answerActivity: {}, streak: 0, startedAt: local.startedAt, resetAt: local.resetAt };
   } else if (timestamp(cloud.resetAt) > timestamp(local.resetAt)) {
-    local = { ...local, questionProgress: {}, sessions: [], streak: 0, startedAt: cloud.startedAt, resetAt: cloud.resetAt };
+    local = { ...local, questionProgress: {}, sessions: [], answerActivity: {}, streak: 0, startedAt: cloud.startedAt, resetAt: cloud.resetAt };
   }
   const localUpdatedAt = local.updatedAt, cloudUpdatedAt = cloud.updatedAt;
   const newest = timestamp(localUpdatedAt) >= timestamp(cloudUpdatedAt) ? local : cloud;
@@ -79,7 +80,10 @@ export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
   }
   const sessions = new Map();
   [...(cloud.sessions || []), ...(local.sessions || [])].forEach(item => {
-    if (item?.completedAt) sessions.set(sessionKey(item), clone(item));
+    if (item?.completedAt) {
+      const key = sessionKey(item), previous = sessions.get(key);
+      sessions.set(key, { ...clone(item), ...(previous?.activityRecorded ? { activityRecorded: true } : {}) });
+    }
   });
   const startedAt = [local.startedAt, cloud.startedAt].filter(Boolean).sort((a, b) => timestamp(a) - timestamp(b))[0];
   const updatedAt = [localUpdatedAt, cloudUpdatedAt].filter(Boolean).sort((a, b) => timestamp(b) - timestamp(a))[0];
@@ -93,7 +97,8 @@ export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
     streak: Math.max(local.streak || 1, cloud.streak || 1),
     questionProgress,
     sessions: [...sessions.values()].sort((a, b) => timestamp(a.completedAt) - timestamp(b.completedAt)).slice(-100),
-    ...Object.fromEntries(Object.entries(newest).filter(([key]) => !["startedAt", "updatedAt", "dailyGoal", "language", "uiLanguage", "streak", "questionProgress", "sessions"].includes(key))),
+    answerActivity: mergeAnswerActivity(local.answerActivity, cloud.answerActivity),
+    ...Object.fromEntries(Object.entries(newest).filter(([key]) => !["startedAt", "updatedAt", "dailyGoal", "language", "uiLanguage", "streak", "questionProgress", "sessions", "answerActivity"].includes(key))),
   };
 }
 

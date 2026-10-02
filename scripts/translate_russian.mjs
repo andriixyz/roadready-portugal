@@ -4,7 +4,7 @@
  * Build the compact Russian overlay for the RoadReady question corpus.
  *
  * Question and answer fields are translated from the reviewed English corpus.
- * Explanations combine the Russian correct answer with reviewed topic guidance.
+ * Feedback shows the study answer or a reviewed question-specific explanation.
  * The script deduplicates source strings, uses the translator's native JSON
  * array boundaries, validates every returned item, retries transient failures,
  * and checkpoints progress so a stopped run can be resumed safely.
@@ -19,6 +19,7 @@ import { createHash } from "node:crypto";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyReviewedTranslations, studyExplanation } from "./reviewed-content.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
@@ -79,25 +80,6 @@ const RUSSIAN_EXACT_OVERRIDES = new Map([
   ["A level crossing with guard.", "Охраняемый железнодорожный переезд."],
   ["The yield sign indicates:", "Знак «Уступите дорогу» означает:"],
 ]);
-
-const RUSSIAN_TOPIC_GUIDANCE = {
-  "Cedência de passagem": "Перед решением проверьте знаки, конфигурацию дороги и траектории всех участников движения.",
-  "Circulação, segurança e veículos em missão urgente de socorro": "Преимущество экстренного транспорта действует, только когда срочный выезд обозначен надлежащими сигналами и проезд остаётся безопасным.",
-  "Classificação, constituintes, inspecções, pesos e dimensões, protecção de ambiente, equipamentos de segurança, acidente": "Учитывайте указанные в вопросе класс автомобиля, массу, требования техосмотра и оборудования безопасности.",
-  "Estado físico do condutor, alcool, drogas e medicamentos, sinais de obrigação": "Применяйте португальские нормы и учитывайте влияние алкоголя, лекарств, усталости или предписывающих знаков.",
-  "Iluminação, passageiros e carga, condução defensiva e peões": "Выбирайте действие, которое сохраняет видимость и защищает пассажиров, пешеходов и перевозимый груз.",
-  "Outras manobras": "Манёвр разрешён только после подачи сигнала, проверки обстановки и при отсутствии опасности или помех.",
-  "Paragem, estacionamento e cruzamento de veículos": "Учитывайте положение автомобиля, необходимое свободное пространство и возможную опасность или помеху от остановки.",
-  "Sinais de indicação": "Точно учитывайте символ, цвет и расположение показанного информационного знака.",
-  "Sinais de perigo": "Предупреждающий знак сообщает об опасности впереди: определите её и заранее скорректируйте скорость и положение на дороге.",
-  "Sinais de prescrição específica, sinais de cedência de passagem": "Сначала выполняйте специальное предписание или правило приоритета, показанное знаком, и только затем применяйте общие правила.",
-  "Sinais de proibição": "Знак ограничивает обозначенных участников движения или действия с места, где начинается его действие.",
-  "Sinalização luminosa, marcas no pavimento e outra sinalização": "Светофоры, разметка и временные сигналы определяют разрешённое движение и имеют приоритет там, где применяются.",
-  "Títulos de condução, obtenção, revalidação, responsabilidade civil e criminal, contra-ordenações, cassação": "Учитывайте категорию прав и описанное в вопросе юридическое последствие или административное требование.",
-  "Ultrapassagem": "Обгоняйте только при достаточной видимости, разрешающей разметке и безопасной дистанции с учётом движения других участников.",
-  "Velocidade": "Соблюдайте действующее ограничение и дополнительно снижайте скорость при плохой видимости, интенсивном движении или сложных дорожных условиях.",
-  "Vias de trânsito, condições ambientais adversas": "Выбирайте полосу и скорость, позволяющие сохранять контроль, видимость и безопасную дистанцию в указанных условиях.",
-};
 
 const argumentsMap = new Map(
   process.argv.slice(2).map((argument) => {
@@ -204,6 +186,7 @@ function applyTerminologyOverrides(source, overlay) {
         appliedFields += 1;
       }
     }
+    applyReviewedTranslations(question, "ru", translated);
   }
   return appliedFields;
 }
@@ -212,9 +195,8 @@ function applyRussianExplanations(source, overlay) {
   for (const question of source.questions) {
     const translated = overlay.questions[question.id];
     const correct = translated.answers.find((answer) => answer.key === question.correct)?.ru;
-    const guidance = RUSSIAN_TOPIC_GUIDANCE[question.topic] || "Примените точное правило дорожного движения и все детали показанной ситуации.";
     if (!isNonEmptyString(correct)) continue;
-    translated.explanation.ru = `Правильный ответ: «${correct}» ${guidance}`;
+    translated.explanation.ru = studyExplanation(question, "ru", translated.answers);
   }
 }
 
@@ -566,7 +548,7 @@ const overlay = {
     sourceFile: "public/data/questions-en.json",
     sourceSha256: sourceHash,
     questionAndAnswerSourceLanguage: "en",
-    explanationSourceLanguage: "generated Russian guidance",
+    explanationSourceLanguage: "study key or reviewed question-specific explanation",
     targetLanguage: TARGET_LANGUAGE,
     translationProvider: "Microsoft Translator",
     complete: false,
@@ -589,8 +571,8 @@ overlay.metadata.terminologyOverrides = {
   appliedFields: terminologyOverrideCount,
 };
 overlay.metadata.explanations = {
-  version: 1,
-  method: "Russian correct answer plus reviewed topic guidance",
+  version: 2,
+  method: "Study key answer only unless a question-specific explanation has been reviewed",
 };
 
 async function writeOverlay({ complete }) {
@@ -663,6 +645,7 @@ if (batches.length > 0) {
   await checkpoint;
 }
 
+applyRussianExplanations(source, overlay);
 const finalValidation = validateOverlay(source, overlay, {
   requireComplete: true,
 });

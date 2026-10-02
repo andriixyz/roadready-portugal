@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { addExplanations } from "./explanations.mjs";
+import { applyReviewedTranslations } from "./reviewed-content.mjs";
 
 const INPUT = new URL("../public/data/questions-pt.json", import.meta.url);
 const OUTPUT = new URL("../public/data/questions-en.json", import.meta.url);
@@ -75,6 +76,7 @@ await pool(chunks, async (chunk) => {
 
 payload.translatedAt = new Date().toISOString();
 payload.translation = "Google machine translation, Portuguese to English; Portuguese source preserved";
+payload.questions.forEach((question) => applyReviewedTranslations(question, "en"));
 payload.questions = addExplanations(payload.questions);
 payload.explanationsGeneratedAt = new Date().toISOString();
 await writeFile(OUTPUT, JSON.stringify(payload));
