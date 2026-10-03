@@ -391,8 +391,26 @@ function startSession(mode) {
 }
 
 function scrollQuizIntoView() {
-  if (modal.hidden && window.matchMedia?.("(max-width: 720px)")?.matches) main.scrollIntoView({ block: "start" });
+  if (modal.hidden && window.matchMedia?.("(max-width: 720px)")?.matches) main.scrollIntoView({ block: "start", behavior: "instant" });
 }
+
+function updateQuizLayout() {
+  const card = $(".question-card");
+  if (!card || !window.matchMedia) return;
+  const body = $(".question-body", card);
+  const intro = $(".question-intro", card);
+  const navigation = $(".quiz-navigation");
+  // Move the existing nodes so keyboard order follows the phone layout too.
+  if (window.matchMedia("(max-width: 720px)").matches) {
+    card.insertBefore(intro, $(".question-visual", card));
+    body.insertBefore(navigation, $(".question-capture-actions", body));
+  } else {
+    body.prepend(intro);
+    card.before(navigation);
+  }
+}
+
+window.matchMedia?.("(max-width: 720px)")?.addEventListener("change", updateQuizLayout);
 
 function bindStartButtons() { $$('[data-start]').forEach((button) => button.addEventListener("click", () => startSession(button.dataset.start))); }
 
@@ -441,8 +459,10 @@ function renderQuestion() {
       <article class="card question-card">
         <div class="question-visual"><div class="question-image-frame">${image}</div><div class="image-links"><a class="source-pill" href="${escapeHtml(q.sourceUrl)}" target="_blank" rel="noopener">${t("quiz.source", { id: escapeHtml(q.sourceId) })}</a>${q.image ? `<a class="full-image-link" href="${escapeHtml(q.image)}" target="_blank" rel="noopener">${t("quiz.fullImage")}</a>` : ""}</div></div>
         <div class="question-body">
-          <div class="question-tools"><span class="question-topic">${escapeHtml(topicName(q.topic, language))}</span><div class="language-toggle" role="group" aria-label="${t("aria.questionLanguage")}"><button class="${language === "en" ? "active" : ""}" data-lang="en" aria-pressed="${language === "en"}">EN</button><button class="${language === "ru" ? "active" : ""}" data-lang="ru" aria-pressed="${language === "ru"}">RU</button><button class="${language === "pt" ? "active" : ""}" data-lang="pt" aria-pressed="${language === "pt"}">PT</button></div></div>
-          <h1>${escapeHtml(title)}</h1>
+          <div class="question-intro">
+            <div class="question-tools"><span class="question-topic">${escapeHtml(topicName(q.topic, language))}</span><div class="language-toggle" role="group" aria-label="${t("aria.questionLanguage")}"><button class="${language === "en" ? "active" : ""}" data-lang="en" aria-pressed="${language === "en"}">EN</button><button class="${language === "ru" ? "active" : ""}" data-lang="ru" aria-pressed="${language === "ru"}">RU</button><button class="${language === "pt" ? "active" : ""}" data-lang="pt" aria-pressed="${language === "pt"}">PT</button></div></div>
+            <h1>${escapeHtml(title)}</h1>
+          </div>
           ${questionVerificationMarkup(q, session.checked && session.mode !== "exam")}
           <div class="answers">${q.answers.map((answer, i) => {
             const selected = session.selected === answer.key || answerState?.pick === answer.key;
@@ -459,6 +479,7 @@ function renderQuestion() {
         </div>
       </article>
     </div>`;
+  updateQuizLayout();
   $("#exitQuiz").addEventListener("click", () => { location.hash = "practice"; });
   $$('[data-lang]').forEach((button) => button.addEventListener("click", () => { void setQuestionLanguage(button.dataset.lang); }));
   $$("[data-answer]").forEach((button) => button.addEventListener("click", () => chooseAnswer(button.dataset.answer)));
@@ -593,7 +614,7 @@ function navigateQuestion(index) {
   session.navigationExpanded = false;
   renderQuestion();
   scrollQuizIntoView();
-  const heading = $(".question-body h1");
+  const heading = $(".question-intro h1");
   if (heading) {
     heading.tabIndex = -1;
     heading.focus({ preventScroll: true });
