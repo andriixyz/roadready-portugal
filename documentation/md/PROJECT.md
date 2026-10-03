@@ -8,6 +8,10 @@ The project has no framework, bundler or npm dependencies. `index.html` supplies
 
 The routes are `#dashboard`, `#practice`, `#quiz`, `#progress` and `#sources`. Settings is a dialog over the current route. A bare `#quiz` without an in-memory session returns to Dashboard.
 
+Settings offers System, Light and Dark appearance in both UI languages. The default follows `prefers-color-scheme` and responds to device appearance changes. The small classic `theme.js` script runs in the document head before CSS to apply the saved theme on the first paint; choosing an appearance only updates CSS and never rerenders the active quiz. It also updates the browser theme color and keeps other open tabs in step. Theme colors cover all routes, answer feedback, results, verification labels and settings; question images and captured PNGs retain their original colors.
+
+Appearance is a per-browser preference stored separately from study data. It is not synced, exported, imported or erased by progress reset. If storage is unavailable, theme selection remains usable for the current page.
+
 Startup in `app.js`:
 
 1. Load/generate the browser device ID and validate the saved local profile; salvage valid records if damaged.
@@ -49,6 +53,7 @@ Dashboard readiness is a UI heuristic: 35% corpus coverage, 35% answer accuracy 
 | `localStorage` key | Meaning |
 | --- | --- |
 | `roadready-profile` | Preferences, question progress, completed summaries and activity |
+| `roadready-theme` | Per-browser appearance preference: `system`, `light` or `dark` |
 | `roadready-profile-recovery` | Original damaged profile retained during startup recovery, when storage permits |
 | `roadready-device-id` | Browser UUID identifying its answer/activity counters |
 | `roadready-sync-key` | Private 43-character key identifying the shared cloud profile |

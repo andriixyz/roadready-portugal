@@ -8,7 +8,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>RoadReady — Portugal Category B</title>
-    <link rel="stylesheet" href="styles.css?v=20261003-1" />
+    <script src="theme.js?v=20261003-1"></script>
+    <link rel="stylesheet" href="styles.css?v=20261003-2" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -79,6 +80,14 @@
             <button type="button" data-ui-lang="ru" data-i18n="language.russian">Русский</button>
           </div>
         </div>
+        <div class="language-settings">
+          <div><strong data-i18n="settings.appearance">Appearance</strong><small data-i18n="settings.appearanceHelp">Follow your device theme or choose your own for this browser.</small></div>
+          <div class="settings-theme-toggle" role="group" aria-label="Appearance" data-i18n-aria="aria.appearance">
+            <button type="button" data-theme-preference="system" aria-pressed="true" data-i18n="settings.themeSystem">System</button>
+            <button type="button" data-theme-preference="light" aria-pressed="false" data-i18n="settings.themeLight">Light</button>
+            <button type="button" data-theme-preference="dark" aria-pressed="false" data-i18n="settings.themeDark">Dark</button>
+          </div>
+        </div>
         <div class="sync-panel">
           <div class="sync-state">
             <span class="sync-dot" id="syncDot" aria-hidden="true"></span>
@@ -117,6 +126,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="app.js?v=20261003-1"></script>
+    <script type="module" src="app.js?v=20261003-2"></script>
   </body>
 </html>
