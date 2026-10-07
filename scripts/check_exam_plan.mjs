@@ -59,11 +59,16 @@ assert.ok(examReadiness(bank, known, "en", today).ready);
 assert.equal(examReadiness(bank, known, "en", today, true).ready, false, "Demo questions cannot satisfy readiness");
 assert.equal(examReadiness(bank, known, "pt", today).ready, false, "Readiness needs mocks in the configured exam language");
 for (const change of [{ language: undefined }, { languageChanged: true }, { total: 6, correct: 6 },
-  { durationSeconds: undefined }, { durationSeconds: 1801 }, { correct: 27 },
+  { durationSeconds: undefined }, { correct: 27 },
   { completedAt: "2026-09-29T12:00:00Z" }, { completedAt: "2026-10-09T12:00:00Z" }]) {
   const candidate = { ...known, sessions: known.sessions.map((session, index) => index === 4 ? { ...session, ...change } : session) };
   assert.equal(examReadiness(bank, candidate, "en", today).ready, false, JSON.stringify(change));
 }
+const unhurried = { ...known, sessions: known.sessions.map((session) => ({ ...session, durationSeconds: 3600 })) };
+assert.ok(examReadiness(bank, unhurried, "en", today).ready, "Preparation mocks have no time restriction");
+const todayMock = { ...empty(), sessions: [mock(5, 28, today.toISOString())] };
+todayMock.sessions[0].durationSeconds = 3600;
+assert.equal(getExamPlan(bank, todayMock, config, today).mocksToday, 1, "Longer mocks also satisfy the daily mock target");
 const failed = { ...known, sessions: [...known.sessions, mock(5, 26, today.toISOString())] };
 assert.equal(examReadiness(bank, failed, "en", today).ready, false, "A newer failure must replace an older passing mock");
 const crammed = { ...known, sessions: known.sessions.map((session) => ({ ...session, completedAt: today.toISOString() })) };
@@ -94,4 +99,4 @@ assert.deepEqual(normaliseStudyProfile(known, empty()).sessions, known.sessions)
 assert.throws(() => validateStudyProfile({ ...known, examPlan: { ...config, language: "xx" } }));
 assert.equal(recoverStudyProfile({ ...known, examPlan: { ...config, language: "xx" } }, { ...empty(), examPlan: null }).examPlan, null);
 assert.equal(recoverStudyProfile(known, empty()).questionProgress["q-0"].firstSeenAt, known.questionProgress["q-0"].firstSeenAt);
-console.log("Exam plan checks passed: daily pacing, calendar deadlines, balanced coverage, latest mistakes, language-aware timed mocks, sync and backup preservation.");
+console.log("Exam plan checks passed: daily pacing, calendar deadlines, balanced coverage, latest mistakes, language-aware mocks without time restrictions, sync and backup preservation.");

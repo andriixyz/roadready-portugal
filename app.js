@@ -1,11 +1,11 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261007-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261007-2";
-import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261001-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261007-3";
+import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261007-3";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261007-1";
 import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
 import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "./question-verification.js?v=20261002-1";
-import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions } from "./exam-plan.js?v=20261007-1";
+import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions } from "./exam-plan.js?v=20261007-3";
 import { renderSpeedLimits } from "./speed-limits.js?v=20261007-1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -393,7 +393,7 @@ function renderPractice() {
         <article class="card mode-card"><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("quick")) })}</span><h3>${t("practice.quickTitle")}</h3><p>${t("practice.quickDescription")}</p><button class="button button-primary" data-start="quick">${t("practice.start")}</button></article>
         <article class="card mode-card"><span class="mode-badge">${t("practice.available", { count: formatNumber(s.due) })}</span><span class="mode-kicker">${t("practice.spaced")}</span><h3>${t("practice.dueTitle")}</h3><p>${t("practice.dueDescription")}</p><button class="button button-primary" data-start="review">${t("dashboard.reviewDue")}</button></article>
         <article class="card mode-card"><span class="mode-badge">${t(s.mistakes === 1 ? "practice.weakSpots.one" : "practice.weakSpots", { count: formatNumber(s.mistakes) })}</span><span class="mode-kicker">${t("practice.repair")}</span><h3>${t("practice.clinic")}</h3><p>${t("practice.clinicDescription")}</p><button class="button button-secondary" data-start="mistakes">${t("practice.fix")}</button></article>
-        <article class="card mode-card"><span class="mode-badge">${t("practice.pass", { correct: formatNumber(Math.max(0, sessionSize("exam") - 3)), total: formatNumber(sessionSize("exam")) })}</span><span class="mode-kicker">${t("practice.examMeta", { questions: formatQuestionCount(sessionSize("exam")) })}</span><h3>${t("practice.mockTitle")}</h3><p>${t("practice.mockFullDescription")}</p><button class="button button-primary" data-start="exam">${t("practice.startTimed")}</button></article>
+        <article class="card mode-card"><span class="mode-badge">${t("practice.pass", { correct: formatNumber(Math.max(0, sessionSize("exam") - 3)), total: formatNumber(sessionSize("exam")) })}</span><span class="mode-kicker">${t("practice.examMeta", { questions: formatQuestionCount(sessionSize("exam")) })}</span><h3>${t("practice.mockTitle")}</h3><p>${t("practice.mockFullDescription")}</p><button class="button button-primary" data-start="exam">${t("practice.startMock")}</button></article>
       </section>
       <div class="section-heading"><div><h2>${t("plan.roadmap")}</h2><p>${t("plan.targetDate", { date: planDate(plan.config.examDate) })}</p></div><button class="button button-ghost" data-edit-plan>${t("plan.edit")}</button></div>
       ${planScheduleMarkup(plan)}
@@ -523,7 +523,7 @@ function renderQuestion() {
   const image = q.image ? `<a class="question-image-link" href="${escapeHtml(q.image)}" target="_blank" rel="noopener" aria-label="${escapeHtml(t("quiz.openImage", { id: q.sourceId }))}"><img src="${escapeHtml(getQuestionImagePath(q))}" alt="${escapeHtml(t("quiz.imageAlt", { id: q.sourceId }))}" referrerpolicy="no-referrer" /></a>` : `<div class="image-fallback"><strong>${t("quiz.textOnly")}</strong><br><br>${t("quiz.imageNotRequired")}</div>`;
   main.innerHTML = `
     <div class="page question-page">
-      <div class="quiz-topbar"><button class="icon-button" id="exitQuiz" aria-label="${t("quiz.exit")}">×</button><div class="quiz-progress" style="--value:${progress}%"><span></span></div><span class="quiz-counter">${session.mode === "exam" ? `<b id="timer">${formatTime(session.remaining)}</b> · ` : ""}${t("quiz.counter", { current: formatNumber(session.index + 1), total: formatNumber(session.questions.length) })}</span></div>
+      <div class="quiz-topbar"><button class="icon-button" id="exitQuiz" aria-label="${t("quiz.exit")}">×</button><div class="quiz-progress" style="--value:${progress}%"><span></span></div><span class="quiz-counter">${session.mode === "exam" ? `<b id="timer" title="${t("quiz.elapsedTime")}">${formatTime(session.elapsedSeconds)}</b> · ` : ""}${t("quiz.counter", { current: formatNumber(session.index + 1), total: formatNumber(session.questions.length) })}</span></div>
       <nav class="quiz-navigation" aria-label="${t("quiz.navigation")}">
         <div class="quiz-navigation-controls"><button class="button button-secondary" id="quizPrevious" ${session.index === 0 ? "disabled" : ""}>← ${t("quiz.previous")}</button><span class="quiz-navigation-status" role="status">${t("quiz.answeredCount", { count: formatNumber(session.answers.filter(Boolean).length), total: formatNumber(session.questions.length) })}</span><button class="button button-secondary" id="quizNext" ${isLast ? "disabled" : ""}>${t("quiz.next")} →</button></div>
         <button class="button button-secondary quiz-nav-toggle" id="toggleQuizNumbers" type="button" aria-controls="quizQuestionList" aria-expanded="${Boolean(session.navigationExpanded)}">${t(session.navigationExpanded ? "quiz.hideQuestions" : "quiz.showQuestions")}</button>
@@ -539,16 +539,16 @@ function renderQuestion() {
             <div class="question-tools"><span class="question-topic">${escapeHtml(topicName(q.topic, language))}</span><div class="language-toggle" role="group" aria-label="${t("aria.questionLanguage")}"><button class="${language === "en" ? "active" : ""}" data-lang="en" aria-pressed="${language === "en"}">EN</button><button class="${language === "ru" ? "active" : ""}" data-lang="ru" aria-pressed="${language === "ru"}">RU</button><button class="${language === "pt" ? "active" : ""}" data-lang="pt" aria-pressed="${language === "pt"}">PT</button></div></div>
             <h1>${escapeHtml(title)}</h1>
           </div>
-          ${questionVerificationMarkup(q, session.checked && session.mode !== "exam")}
+          ${questionVerificationMarkup(q, session.checked)}
           <div class="answers">${q.answers.map((answer, i) => {
             const selected = session.selected === answer.key || answerState?.pick === answer.key;
-            const checked = session.checked && session.mode !== "exam";
+            const checked = session.checked;
             const status = checked && answer.key === q.correct ? "correct" : checked && selected && answer.key !== q.correct ? "wrong" : selected ? "selected" : "";
             const marker = checked && answer.key === q.correct ? "✓" : checked && selected ? "×" : "";
             return `<button class="answer-option ${status}" data-answer="${answer.key}" aria-pressed="${selected}" ${checked ? "disabled" : ""}><span class="answer-key">${i + 1}</span><span>${escapeHtml(answer[language] || answer.en || answer.pt)}</span><span class="answer-marker">${marker}</span></button>`;
           }).join("")}</div>
-          ${session.checked && session.mode !== "exam" ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: q.correct })}</strong></div><p>${escapeHtml(explanation)}</p>${explanationSourceLink(q)}<small>${session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
-          <div class="quiz-actions"><span class="quiz-hint">${t("quiz.keyboardHint")}</span><button class="button ${session.checked ? "button-primary" : "button-accent"}" id="quizPrimary" ${session.selected ? "" : "disabled"}>${session.mode === "exam" || session.checked ? advanceLabel : t("quiz.check")} →</button></div>
+          ${session.checked ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}" id="answerFeedback" tabindex="-1" role="status"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: q.correct })}</strong></div><p>${escapeHtml(explanation)}</p>${explanationSourceLink(q)}<small>${session.mode === "exam" ? t("quiz.feedbackHint") : session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
+          <div class="quiz-actions"><span class="quiz-hint">${t("quiz.keyboardHint")}</span><button class="button ${session.checked ? "button-primary" : "button-accent"}" id="quizPrimary" ${session.checked ? "" : "disabled"}>${session.checked ? advanceLabel : t("quiz.selectAnswer")} →</button></div>
           <div class="question-capture-actions"><button class="button button-primary" id="askChatGPT" type="button">${t("quiz.askChatGPT")} ↗</button><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="copyQuestionPrompt" type="button">${t("quiz.copyPrompt")}</button><button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button><a class="button button-ghost" id="chatGPTOpenLink" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" hidden>${t("quiz.openChatGPT")} ↗</a></div>
           <p class="capture-status" id="questionCaptureStatus" role="status">${t("quiz.chatGPTHint")}</p>
           <div class="question-prompt-fallback" id="questionPromptFallback" hidden><label for="questionPromptText">${t("quiz.promptLabel")}</label><textarea id="questionPromptText" readonly rows="7">${escapeHtml(getQuestionChatGPTPrompt(q, language))}</textarea></div>
@@ -675,20 +675,12 @@ function setSessionLanguage(language) {
 
 function chooseAnswer(key) {
   if (!selectSessionAnswer(session, key)) return;
-  $$("[data-answer]").forEach((button) => {
-    const selected = button.dataset.answer === key;
-    button.classList.toggle("selected", selected);
-    button.setAttribute("aria-pressed", String(selected));
-  });
-  $("#quizPrimary").disabled = false;
-  const number = $(`[data-question-index="${session.index}"]`);
-  number.classList.remove("unanswered", "draft", "answered");
-  const status = session.mode === "exam" ? "answered" : "draft";
-  number.classList.add(status);
-  number.setAttribute("aria-label", t("quiz.questionStatus", { number: formatNumber(session.index + 1), status: t(`quiz.status.${status}`) }));
-  $(".quiz-navigation-status").textContent = t("quiz.answeredCount", { count: formatNumber(session.answers.filter(Boolean).length), total: formatNumber(session.questions.length) });
-  $(".quiz-progress").style.setProperty("--value", `${(session.answers.filter(Boolean).length / session.questions.length) * 100}%`);
-  if (session.mode === "exam" && session.index === session.questions.length - 1) $("#quizPrimary").textContent = `${t(firstUnansweredIndex(session) === -1 ? "quiz.finishExam" : "quiz.returnUnanswered")} →`;
+  const answer = checkSessionAnswer(session);
+  if (session.mode !== "exam") recordQuestion(session.questions[session.index], answer.correct);
+  renderQuestion();
+  const feedback = $("#answerFeedback");
+  feedback.focus({ preventScroll: true });
+  feedback.scrollIntoView({ block: "nearest", behavior: "instant" });
 }
 
 function navigateQuestion(index) {
@@ -705,13 +697,7 @@ function navigateQuestion(index) {
 
 function advanceQuiz() {
   if (!session || session.result || !session.selected) return;
-  const q = session.questions[session.index];
-  if (session.mode !== "exam" && !session.checked) {
-    const answer = checkSessionAnswer(session);
-    recordQuestion(q, answer.correct);
-    renderQuestion();
-    return;
-  }
+  if (!session.checked) { chooseAnswer(session.selected); return; }
   if (session.index >= session.questions.length - 1) {
     const unanswered = firstUnansweredIndex(session);
     if (unanswered !== -1) navigateQuestion(unanswered);
@@ -800,10 +786,9 @@ function renderReviewItem(question, answer, language) {
 function startTimer() {
   clearInterval(timerId);
   const tick = () => {
-    session.remaining = Math.max(0, Math.ceil((session.endsAt - Date.now()) / 1000));
+    session.elapsedSeconds = Math.max(0, Math.floor((Date.now() - session.startedAt) / 1000));
     const timer = $("#timer");
-    if (timer) timer.textContent = formatTime(session.remaining);
-    if (session.remaining <= 0) finishSession();
+    if (timer) timer.textContent = formatTime(session.elapsedSeconds);
   };
   tick();
   if (!session.result) timerId = setInterval(tick, 1000);

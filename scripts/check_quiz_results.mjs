@@ -54,13 +54,31 @@ vm.runInContext(source, context);
 const run = code => vm.runInContext(code, context);
 const main = node("#mainContent");
 
-for (const mode of ["quick", "review", "mistakes", "exam"]) {
+for (const mode of ["quick", "review", "mistakes", "exam", "learn", "repair"]) {
+  run(`profile = defaultProfile(); questions = fixtureQuestions;
+    session = createQuizSession("${mode}", questions, "en"); location.hash = "#quiz"; renderQuestion(); chooseAnswer("B");`);
+  assert.equal(run("session.index"), 0, "A wrong answer stays on the question until explicit navigation");
+  assert.equal(run("session.checked"), true, "Selecting an answer immediately checks it in every mode");
+  assert.ok(main.innerHTML.includes('class="feedback incorrect"'), "The mistake must be visible immediately");
+  assert.ok(main.innerHTML.includes('class="answer-option correct" data-answer="A"'), "Show the study-key choice");
+  assert.ok(main.innerHTML.includes('class="answer-option wrong" data-answer="B"'), "Show the chosen wrong choice");
+  assert.equal(run("profile.sessions.length"), 0, "Showing feedback must not submit the session");
+  run("chooseAnswer('A'); navigateQuestion(1); navigateQuestion(0); applySyncedProfile(profile); renderQuestion()");
+  assert.equal(run("session.answers[0].pick"), "B", "Revealing the key must not allow correcting the recorded attempt");
+  assert.ok(main.innerHTML.includes('class="feedback incorrect"'), "Navigation and sync must preserve mistake feedback");
+  assert.equal(run("profile.questionProgress['test-0']?.wrong || 0"), mode === "exam" ? 0 : 1, "Practice saves once; mocks wait for submission");
+  run("navigateQuestion(2); chooseAnswer('B')");
+  assert.equal(run("session.index"), 2, "The final wrong answer also stays available for review");
+  assert.equal(run("profile.sessions.length"), 0, "The final answer must not automatically submit or return to skipped questions");
+  node("#quizPrimary").listeners.click();
+  assert.equal(run("session.index"), 1, "Returning to skipped questions requires the user's continue action");
+
   run(`profile = defaultProfile(); questions = fixtureQuestions;
     session = createQuizSession("${mode}", questions, "en"); location.hash = "#quiz";`);
   // Answer out of order and then return to the last question for results.
   for (const index of [2, 0, 1]) {
     run(`moveToQuestion(session, ${index}); renderQuestion(); chooseAnswer("A");`);
-    if (mode !== "exam") node("#quizPrimary").listeners.click();
+    assert.equal(run("session.index"), index, "Correct answers also wait for explicit navigation");
   }
   run("navigateQuestion(2)");
   assert.ok(main.innerHTML.includes(mode === "exam" ? "Finish exam" : "See results"));
@@ -90,7 +108,7 @@ assert.ok(main.innerHTML.includes('<dt>Your answer</dt><dd>B · Wrong option</dd
 assert.ok(main.innerHTML.includes('<dt>Study-key answer</dt><dd>A · Correct option</dd>'));
 assert.ok(main.innerHTML.includes('<dt>Your answer</dt><dd>Not answered</dd>'), "Unanswered mock items must be explicit");
 
-// Verification labels must not reveal reviewed answer reasoning during a mock.
+// Verification and answer reasoning appear only after the first answer is selected.
 const bank = JSON.parse(await readFile(new URL("../public/data/questions-en.json", import.meta.url), "utf8"));
 const proofPayload = JSON.parse(await readFile(new URL("../public/data/imt-verification.json", import.meta.url), "utf8"));
 context.auditFixture = await prepareVerificationAudit(bank.questions, proofPayload);
@@ -101,13 +119,14 @@ assert.ok(main.innerHTML.includes(`verification-${actualProof.status}`), "The so
 assert.ok(main.innerHTML.includes("#page="), "The verification links to a specific PDF page");
 assert.ok(!main.innerHTML.includes("Answer reasoning reviewed"));
 assert.ok(!main.innerHTML.includes("rule-source-link"));
-assert.ok(!main.innerHTML.includes("Article 43(1)"), "A mock must not disclose the reviewed rule before submission");
-run("chooseAnswer('A'); finishSession()");
+assert.ok(!main.innerHTML.includes("Article 43(1)"), "Do not disclose the reviewed rule before answering");
+run("chooseAnswer('A')");
 assert.ok(main.innerHTML.includes("Answer reasoning reviewed"));
 assert.ok(main.innerHTML.includes("rule-source-link"));
+assert.equal(run("session.result"), undefined, "Mock reasoning is available before explicit submission");
 run("session = createQuizSession('quick', questions, 'en'); profile.uiLanguage = 'ru'; renderQuestion();");
 assert.ok(main.innerHTML.includes(translate(`verification.${actualProof.status}.label`, "ru")));
 assert.ok(!main.innerHTML.includes("Обоснование ответа проверено"));
-run("chooseAnswer('B'); advanceQuiz()");
+run("chooseAnswer('B')");
 assert.ok(main.innerHTML.includes("Обоснование ответа проверено"));
-console.log("Quiz results checks passed: submission, late renders/language/sync, single recording, review details, PDF verification and no reviewed-answer disclosure during mocks.");
+console.log("Quiz results checks passed: immediate feedback without navigation/submission, preserved first attempts, late renders/language/sync, single recording, review details and PDF verification.");

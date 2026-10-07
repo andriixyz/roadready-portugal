@@ -60,14 +60,13 @@ function harness(saved = null) {
 for (const mode of ["quick", "exam"]) {
   const app = harness();
   app.run(`session = createQuizSession("${mode}", questions, "en"); location.hash = "#quiz"; render(); chooseAnswer("A");`);
-  if (mode === "quick") app.run('advanceQuiz(); navigateQuestion(1); chooseAnswer("B")');
+  if (mode === "quick") app.run('navigateQuestion(1); chooseAnswer("B")');
   const original = app.run("JSON.stringify(session)");
-  const endsAt = app.run("session.endsAt");
   for (const route of ["dashboard", "practice", "progress", "sources", "speed-limits"]) {
     app.location.hash = `#${route}`;
     app.listeners.get("hashchange")();
     assert.equal(app.location.hash, "#quiz", "Cancel must return the route to the quiz");
-    assert.equal(app.run("JSON.stringify(session)"), original, "Cancel must retain draft picks, checked answers, index and question order");
+    assert.equal(app.run("JSON.stringify(session)"), original, "Cancel must retain picks, checked answers, index and question order");
   }
   const reloadEvent = { prevented: false, preventDefault() { this.prevented = true; } };
   app.listeners.get("beforeunload")(reloadEvent);
@@ -76,19 +75,23 @@ for (const mode of ["quick", "exam"]) {
     app.control.now += 65000;
     app.location.hash = "#dashboard";
     app.listeners.get("hashchange")();
-    assert.equal(app.run("session.endsAt"), endsAt);
-    assert.equal(app.run("session.remaining"), 1735, "Canceled navigation must not restart the mock deadline");
+    assert.equal(app.run("session.elapsedSeconds"), 65, "Canceled navigation must preserve elapsed time");
     assert.ok(app.control.prompts.at(-1).includes("not been submitted"));
+    app.control.now += 3600000;
+    app.run("startTimer()");
+    assert.equal(app.run("session.elapsedSeconds"), 3665);
+    assert.equal(app.run("session.result"), undefined, "Passing 30 minutes must not submit a mock");
+    assert.equal(app.run("profile.sessions.length"), 0);
   }
   app.control.allowLeave = true;
   app.location.hash = "#dashboard";
   app.listeners.get("hashchange")();
   assert.equal(app.run("session"), null);
-  assert.equal(app.run("getStats().todayAnswered"), mode === "quick" ? 1 : 0);
+  assert.equal(app.run("getStats().todayAnswered"), mode === "quick" ? 2 : 0);
   if (mode === "quick") {
-    assert.ok(app.node("#mainContent").innerHTML.includes("1 answers today"));
+    assert.ok(app.node("#mainContent").innerHTML.includes("2 answers today"));
     const reloaded = harness(app.storage.get("roadready-profile"));
-    assert.equal(reloaded.run("getStats().todayAnswered"), 1, "An abandoned practice answer must still count after reload");
+    assert.equal(reloaded.run("getStats().todayAnswered"), 2, "Abandoned practice answers must still count after reload");
   }
   const exited = { preventDefault() { assert.fail("There is no active session to lose"); } };
   app.listeners.get("beforeunload")(exited);
@@ -111,7 +114,7 @@ assert.ok(midnight.node("#mainContent").innerHTML.includes('--height:5%'), "The 
 
 const exam = harness();
 exam.run('session = createQuizSession("exam", questions, "en"); location.hash = "#quiz"; render(); chooseAnswer("A")');
-assert.equal(exam.run("getStats().todayAnswered"), 0, "Draft mock answers do not count before submission");
+assert.equal(exam.run("getStats().todayAnswered"), 0, "Checked mock answers do not count before submission");
 exam.run("finishSession(); finishSession(); render()");
 assert.equal(exam.run("getStats().todayAnswered"), 3, "Mock submission counts once, including unanswered questions recorded as mistakes");
 assert.equal(exam.run("profile.sessions.length"), 1);
@@ -212,7 +215,7 @@ assert.equal(configured.run("JSON.stringify(profile)"), originalProfile, "Past t
 configured.node("#examDate").value = "2026-10-25";
 submitPlan();
 assert.equal(configured.run("profile.examPlan.examDate"), "2026-10-25");
-assert.equal(configured.run("JSON.stringify(session)"), activeSession, "Updating the plan must preserve active mock choices and deadline");
+assert.equal(configured.run("JSON.stringify(session)"), activeSession, "Updating the plan must preserve active mock choices, feedback and elapsed time");
 assert.equal(JSON.parse(configured.storage.get("roadready-profile")).examPlan.examDate, "2026-10-25");
 configured.run('setSessionLanguage("pt"); setSessionLanguage("en"); finishSession()');
 assert.equal(configured.run("profile.sessions[0].languageChanged"), true, "Mixed-language mock results must carry their exclusion flag");

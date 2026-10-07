@@ -19,7 +19,7 @@ Read [README.md](README.md) for user-facing behavior and setup. Read [documentat
 | Area | Source |
 | --- | --- |
 | Routes, rendering, question selection, recording answers, results, settings | `app.js` |
-| Pure quiz transitions: drafts, checking, navigation and mock deadlines | `quiz-session.js` |
+| Pure quiz transitions: selection, checking, navigation and elapsed time | `quiz-session.js` |
 | Profile validation, normalization and recovery | `profile-data.js` |
 | Local calendar activity, streaks and activity merging | `study-activity.js` |
 | Exam deadline, daily targets, topic balance and preparation evidence | `exam-plan.js`; dashboard/settings in `app.js` |
@@ -64,8 +64,8 @@ For browser QA, use synthetic progress on a separate origin and disable Supabase
 
 - Preserve question IDs, Portuguese source wording, answer keys/order and source attribution. The corpus uses a **non-official study key**. Detailed reasoning must be reviewed for the exact question and linked to a relevant source; topic boilerplate must not be presented as a reviewed explanation.
 - UI language (`uiLanguage`: EN/RU) and question language (`language`: EN/RU/PT) are distinct. Add UI keys in both `i18n.js` dictionaries, including accessibility strings. Russian question content is a lazy overlay tied to the exact English corpus file hash.
-- Practice drafts do not count. Checked practice answers save once, even if the session is abandoned. Mock answers remain editable, reveal no feedback before submission, and count only on submission; unanswered mock questions count as wrong.
-- Navigation, language changes and sync renders must preserve the active session, checked feedback, drafts and mock deadline. Completed results must survive later renders without recording again. Sessions are in memory and do not resume after reload.
+- Selecting an answer checks it immediately in every mode, locks the first attempt and shows feedback without advancing. Continue/navigation/submission requires the user's action, including after the final answer. Practice answers save once, even if abandoned. Mock answers count only on submission; unanswered mock questions count as wrong. Mocks have no deadline; the timer shows elapsed time.
+- Navigation, language changes and sync renders must preserve the active session, checked feedback, picks and elapsed time. Completed results must survive later renders without recording again. Sessions are in memory and do not resume after reload.
 - Keep review limited to due questions and mistakes limited to `wrong > correct`. Empty modes stay on the current page. Displayed session sizes must agree with actual selection limits.
 - Preserve per-device counters and legacy base counts. Merge each device's counters using maxima, then calculate totals; summing already-merged totals double-counts. Preserve `resetAt` so stale devices cannot resurrect erased progress.
 - Daily activity uses the device's local calendar date. Derive the visible streak from activity/legacy sessions, rather than trusting the stored `streak` field.

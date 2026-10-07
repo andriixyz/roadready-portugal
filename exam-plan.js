@@ -48,7 +48,7 @@ export function examTopicStats(questions, profile) {
     || String(a.topic).localeCompare(String(b.topic)));
 }
 
-export function timedMocks(profile, language, today = new Date()) {
+export function recentMocks(profile, language, today = new Date()) {
   const day = dayNumber(studyDay(today));
   return (profile.sessions || []).filter((session) => {
     const age = day - dayNumber(studyDay(new Date(session.completedAt)));
@@ -61,8 +61,8 @@ export function examReadiness(questions, profile, language = "en", today = new D
   const topics = examTopicStats(questions, profile);
   const seen = topics.reduce((sum, topic) => sum + topic.seen, 0);
   const unresolved = unresolvedQuestions(questions, profile).length;
-  const mocks = timedMocks(profile, language, today).slice(-5);
-  const strongMocks = mocks.filter((mock) => mock.correct >= 28 && mock.durationSeconds <= 1800).length;
+  const mocks = recentMocks(profile, language, today).slice(-5);
+  const strongMocks = mocks.filter((mock) => mock.correct >= 28).length;
   const mockDays = new Set(mocks.map((mock) => studyDay(new Date(mock.completedAt)))).size;
   const checks = [
     { key: "coverage", met: !sample && questions.length > 0 && seen === questions.length },
@@ -97,8 +97,8 @@ export function getExamPlan(questions, profile, config, today = new Date(), samp
   const newTarget = daysLeft > 0 ? Math.ceil((unseen + newToday) / coverageDays) : 0;
   const reviewTarget = daysLeft > 0 ? Math.min(due + reviewToday, phase === "light" ? 20 : Math.max(40, Math.ceil(newTarget * .4))) : 0;
   const mockTarget = phase === "cover" ? 1 : phase === "rehearse" ? 2 : 0;
-  const mocksToday = timedMocks(profile, config.language, today)
-    .filter((mock) => studyDay(new Date(mock.completedAt)) === day && mock.durationSeconds <= 1800).length;
+  const mocksToday = recentMocks(profile, config.language, today)
+    .filter((mock) => studyDay(new Date(mock.completedAt)) === day).length;
   const tasks = [
     { key: "new", mode: "learn", done: newToday, target: newTarget, met: newToday >= newTarget },
     { key: "review", mode: "review", done: reviewToday, target: reviewTarget, met: reviewToday >= reviewTarget },
