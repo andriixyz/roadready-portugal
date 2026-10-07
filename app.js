@@ -1,11 +1,12 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261007-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261007-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261007-2";
 import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261001-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261007-1";
 import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
 import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "./question-verification.js?v=20261002-1";
 import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions } from "./exam-plan.js?v=20261007-1";
+import { renderSpeedLimits } from "./speed-limits.js?v=20261007-1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -312,6 +313,7 @@ function render() {
   if (route === "practice") renderPractice();
   else if (route === "progress") renderProgress();
   else if (route === "sources") renderSources();
+  else if (route === "speed-limits") renderSpeedLimits(main, { t, escapeHtml, onPractice: () => { void startSession("quick", "Velocidade"); } });
   else if (route === "quiz" && session?.result) renderResult(session, session.result);
   else if (route === "quiz" && session) renderQuestion();
   else renderDashboard();
@@ -384,6 +386,7 @@ function renderPractice() {
   main.innerHTML = `
     <div class="page">
       <header class="page-header"><div><span class="eyebrow">${t("practice.eyebrow")}</span><h1>${t("practice.title")}</h1><p>${t("practice.subtitle")}</p></div><span class="date-chip">${t("practice.loaded", { questions: formatQuestionCount(questions.length) })}</span></header>
+      <a class="speed-preview" href="#speed-limits"><span class="speed-preview-numbers" aria-hidden="true">50 <i>90</i> 100 <i>120</i></span><div><strong>${t("speed.previewTitle")}</strong><p>${t("speed.previewHelp")}</p></div><span class="text-link">${t("speed.previewOpen")} →</span></a>
       <section class="mode-grid">
         <article class="card mode-card featured"><span class="mode-badge">${t("practice.recommended")}</span><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("learn")) })}</span><h3>${t("plan.task.new")}</h3><p>${t("plan.learnDescription", { count: formatQuestionCount(plan.unseen), target: formatNumber(plan.newTarget) })}</p><button class="button button-accent" data-start="learn">${t("plan.start.learn")}</button></article>
         <article class="card mode-card"><span class="mode-badge">${t("practice.available", { count: formatNumber(plan.readiness.unresolved) })}</span><span class="mode-kicker">${t("practice.repair")}</span><h3>${t("plan.task.repair")}</h3><p>${t("plan.repairDescription")}</p><button class="button button-primary" data-start="repair">${t("plan.start.repair")}</button></article>

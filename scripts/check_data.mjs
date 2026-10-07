@@ -53,11 +53,11 @@ const russianKeys = Object.keys(TRANSLATIONS.ru);
 for (const key of englishKeys) if (!(key in TRANSLATIONS.ru)) errors.push(`${key}: missing Russian UI translation`);
 for (const key of russianKeys) if (!(key in TRANSLATIONS.en)) errors.push(`${key}: missing English UI translation`);
 
-const runtimeSources = await Promise.all(["app.js", "sync.js", "index.html"].map(async (file) => ({
+const runtimeSources = await Promise.all(["app.js", "sync.js", "speed-limits.js", "index.html"].map(async (file) => ({
   file,
   text: await readFile(new URL(file, root), "utf8"),
 })));
-const keyPattern = /["']((?:aria|nav|chrome|language|settings|dashboard|unit|practice|quiz|result|progress|topic|sources|storage|sync|meta|plan)\.[A-Za-z0-9.-]+)["']/g;
+const keyPattern = /["']((?:aria|nav|chrome|language|settings|dashboard|unit|practice|quiz|result|progress|topic|sources|storage|sync|meta|plan|speed)\.[A-Za-z0-9.-]+)["']/g;
 const pluralKeyBases = new Set(["storage.question", "storage.session", "unit.day", "unit.attempt"]);
 for (const source of runtimeSources) {
   for (const match of source.text.matchAll(keyPattern)) {

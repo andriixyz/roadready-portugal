@@ -14,6 +14,12 @@ Preparation is shown as four explicit study goals: encounter the whole bank; att
 
 The [IMT Category B format](https://imt.madeira.gov.pt/index.php/pt/transportes-terrestres/condutores/provas-teoricas) is **30 questions in 30 minutes, passing at 27 correct**; 28/30 is the app's preparation margin. Confirm your actual date, centre, time, English exam or interpreter arrangements and required documents with your driving school.
 
+## Remember Portugal's speed limits
+
+Open **Speed limits** in navigation or the memory-map link on Practice. The English/Russian page starts with **50 → 90 → 100 → 120 km/h** for a light passenger or mixed vehicle without a trailer: town, other roads outside town, roads reserved for cars/motorcycles, motorway. Switch to a light goods vehicle or add a trailer to learn the corresponding row; signed shared zones have a general maximum of **20 km/h**.
+
+Hide the four limits to recall them, then try the 12 custom questions with rule explanations and official links. These exercises do not change exam progress. **Practice the Speed topic** starts a regular study-bank set, and **Print memory sheet** prints all four light-vehicle rows. The page also explains maximum/minimum/recommended signs, posted restrictions, the motorway minimum and adjusting speed to conditions. [Research notes and official sources](documentation/md/SPEED-LIMITS.md) record the scope and source-check date.
+
 ## Run locally
 
 ```bash

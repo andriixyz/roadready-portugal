@@ -26,6 +26,7 @@ Read [README.md](README.md) for user-facing behavior and setup. Read [documentat
 | Device identity, private links, conflict resolution and cloud requests | `sync.js`; public connection settings in `supabase-config.js` |
 | Question PNGs, wrapping, image paths and ChatGPT prompt content | `question-capture.js` |
 | UI strings and plural/locale helpers | `i18n.js`; static `data-i18n*` attributes in `index.html` |
+| Speed-limit memory map, recall drill and legal sources | `speed-limits.js`; `documentation/md/SPEED-LIMITS.md` |
 | Layout, theme variables and responsive behavior | `styles.css`; page shell/settings in `index.html` |
 | Question content and reproducible corrections | `public/data/`; `scripts/reviewed-content.mjs`, `scripts/explanations.mjs`, translation scripts |
 | IMT PDF comparison and verification labels | `question-verification.js`; `scripts/fetch_imt_pdfs.mjs`, `scripts/audit_imt_pdfs.py`; `documentation/md/IMT-AUDIT.md` |

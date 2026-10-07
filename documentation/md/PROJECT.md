@@ -6,7 +6,9 @@ Source analysis and automated verification: **2 October 2026**, based on commit 
 
 The project has no framework, bundler or npm dependencies. `index.html` supplies the navigation, settings dialog and empty main region. `app.js` imports the browser modules and builds views with template strings and `innerHTML`. Rendering replaces view elements and binds their event handlers again. CSS variables define the theme; responsive breakpoints are 980, 720 and 390 px.
 
-The routes are `#dashboard`, `#practice`, `#quiz`, `#progress` and `#sources`. Settings is a dialog over the current route. A bare `#quiz` without an in-memory session returns to Dashboard.
+The routes are `#dashboard`, `#practice`, `#quiz`, `#progress`, `#speed-limits` and `#sources`. Settings is a dialog over the current route. A bare `#quiz` without an in-memory session returns to Dashboard.
+
+The speed-limit memory page lives in `speed-limits.js`, with EN/RU strings in `i18n.js` and scoped CSS in `styles.css`. It shows the four light-vehicle rows from article 27, a hide/reveal control, sourced exceptions and 12 author-created recall questions. Its module-local state survives UI-language and sync renders but resets on reload; drill answers never enter the saved profile or study evidence. The Speed-topic button starts a normal `Velocidade` practice set. Printing uses a dedicated table containing all four rows regardless of the selected/hidden map. [SPEED-LIMITS.md](SPEED-LIMITS.md) records the primary sources checked on 7 October 2026 and the maintenance/QA scope.
 
 Settings offers System, Light and Dark appearance in both UI languages. The default follows `prefers-color-scheme` and responds to device appearance changes. The small classic `theme.js` script runs in the document head before CSS to apply the saved theme on the first paint; choosing an appearance only updates CSS and never rerenders the active quiz. It also updates the browser theme color and keeps other open tabs in step. Theme colors cover all routes, answer feedback, results, verification labels and settings; question images and captured PNGs retain their original colors.
 
