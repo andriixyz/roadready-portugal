@@ -1,15 +1,17 @@
-import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261002-2";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261003-1";
+import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261007-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261007-1";
 import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261001-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
-import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261002-2";
+import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261007-1";
 import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
 import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "./question-verification.js?v=20261002-1";
+import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions } from "./exam-plan.js?v=20261007-1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const main = $("#mainContent");
-const SESSION_LIMITS = { quick: 10, review: 20, mistakes: 20, exam: 30 };
+const SESSION_LIMITS = { quick: 10, review: 20, mistakes: 20, exam: 30, learn: 20, repair: 20 };
+const suggestedExamPlan = { startedOn: "2026-10-07", examDate: "2026-10-27", language: "en" };
 let topicOrder = "weakest";
 
 const TOPIC_NAMES = {
@@ -69,6 +71,7 @@ const defaultProfile = () => ({
   startedAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   dailyGoal: 20,
+  examPlan: null,
   uiLanguage: "en",
   language: "en",
   questionProgress: {},
@@ -116,6 +119,7 @@ function loadProfile() {
   }
 }
 function saveProfile({ sync = true } = {}) {
+  profile.examPlan ||= { ...suggestedExamPlan };
   profile.updatedAt = new Date().toISOString();
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   if (sync) syncController?.schedule();
@@ -231,21 +235,60 @@ async function loadVerificationAudit() {
 }
 
 function getStats() {
-  const entries = Object.values(profile.questionProgress);
-  const seen = entries.length;
+  const entries = questions.map((question) => profile.questionProgress[question.id]).filter(Boolean);
+  const seen = entries.filter((item) => (item.correct || 0) + (item.wrong || 0) > 0).length;
   const correct = entries.reduce((sum, item) => sum + (item.correct || 0), 0);
   const wrong = entries.reduce((sum, item) => sum + (item.wrong || 0), 0);
   const accuracy = correct + wrong ? Math.round((correct / (correct + wrong)) * 100) : 0;
   const due = dueQuestions().length;
   const mistakes = mistakeQuestions().length;
-  const examSessions = profile.sessions.filter((item) => item.mode === "exam").slice(-5);
+  const evidence = examReadiness(questions, profile, (profile.examPlan || suggestedExamPlan).language, new Date(), corpusMeta.sample);
+  const examSessions = evidence.mocks;
   const mock = examSessions.length ? examSessions.reduce((sum, item) => sum + item.percent, 0) / examSessions.length : 0;
   const coverage = questions.length ? (seen / questions.length) * 100 : 0;
-  const readiness = Math.round(clamp(coverage * .35 + accuracy * .35 + mock * .3, seen ? 8 : 0, 100));
+  const readiness = Math.round(evidence.met / evidence.checks.length * 100);
   const today = new Date();
   const todayAnswered = answersOnDay(profile, today);
   const streak = studyStreak(profile, today);
-  return { seen, correct, wrong, accuracy, due, mistakes, readiness, coverage, mock: Math.round(mock), todayAnswered, streak };
+  return { seen, correct, wrong, accuracy, due, mistakes, readiness, evidence, coverage, mock: Math.round(mock), todayAnswered, streak };
+}
+
+function studyPlan() { return getExamPlan(questions, profile, profile.examPlan || suggestedExamPlan, new Date(), corpusMeta.sample); }
+function planDate(day) { return new Date(`${day}T12:00:00`).toLocaleDateString(currentLocale(), { day: "numeric", month: "short" }); }
+function planLanguage(plan) { return t(`plan.language.${plan.config.language}`); }
+function nextPlanMode(plan = studyPlan()) {
+  if (plan.daysLeft <= 0) return null;
+  if (!plan.readiness.mocks.length && plan.mocksToday < plan.mockTarget) return "exam";
+  if (plan.readiness.unresolved) return "repair";
+  if (plan.reviewToday < plan.reviewTarget && plan.due) return "review";
+  if (plan.newToday < plan.newTarget && plan.unseen) return "learn";
+  if (plan.mocksToday < plan.mockTarget) return "exam";
+  return null;
+}
+
+function readinessMarkup(plan) {
+  const evidence = plan.readiness;
+  const details = {
+    coverage: t("plan.coverageEvidence", { seen: formatNumber(evidence.seen), total: formatNumber(questions.length) }),
+    topics: t("plan.topicEvidence", { count: formatNumber(evidence.topics.filter((topic) => topic.ready).length), total: formatNumber(evidence.topics.length) }),
+    mistakes: t("plan.mistakeEvidence", { count: formatNumber(evidence.unresolved) }),
+    mocks: t("plan.mockEvidence", { count: formatNumber(evidence.strongMocks), days: formatNumber(evidence.mockDays), language: planLanguage(plan) }),
+  };
+  return `<section class="card readiness-evidence" aria-labelledby="readinessTargets"><h2 id="readinessTargets">${t("plan.readinessTargets")}</h2><p>${t("plan.readinessHelp")}</p>${corpusMeta.sample ? `<p class="plan-warning">${t("plan.sample")}</p>` : ""}<ul>${evidence.checks.map((check) => `<li><span class="plan-check ${check.met ? "is-met" : ""}" aria-label="${t(check.met ? "plan.met" : "plan.pending")}">${check.met ? "✓" : "○"}</span><div><strong>${t(`plan.check.${check.key}`)}</strong><small>${details[check.key]}</small></div></li>`).join("")}</ul><a class="text-link" href="https://imt.madeira.gov.pt/index.php/pt/transportes-terrestres/condutores/provas-teoricas" target="_blank" rel="noopener noreferrer">${t("plan.officialFormat")} ↗</a></section>`;
+}
+
+function planScheduleMarkup(plan) {
+  const shift = (offset) => {
+    const date = new Date(`${plan.config.examDate}T12:00:00`);
+    date.setDate(date.getDate() + offset);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  const stages = [
+    ["cover", plan.config.startedOn, shift(-plan.finalDays - 1)],
+    ["rehearse", [shift(-plan.finalDays), plan.config.startedOn].sort().at(-1), shift(-2)],
+    ["light", shift(-1), shift(-1)],
+  ].filter(([, from, to]) => from <= to && to >= plan.config.startedOn);
+  return `<section class="study-plan">${stages.map(([phase, from, to]) => `<article class="plan-row ${phase === plan.phase ? "is-current" : ""}"><span class="plan-day">${planDate(from)}${from !== to ? ` – ${planDate(to)}` : ""}</span><div><h3>${t(`plan.phase.${phase}`)}</h3><p>${t(`plan.schedule.${phase}`)}</p></div></article>`).join("")}</section><p class="plan-logistics">${t("plan.logistics", { language: planLanguage(plan), date: planDate(plan.config.examDate) })} <a class="text-link" href="https://www.imt-ip.pt/condutores/obtencao/exames-de-conducao/" target="_blank" rel="noopener noreferrer">${t("plan.bookingInfo")} ↗</a></p>`;
 }
 
 function setActiveRoute(route) {
@@ -277,40 +320,47 @@ function render() {
 
 function renderDashboard() {
   const s = getStats();
-  const routeMode = s.due ? "review" : "quick";
-  const routeCount = sessionSize(routeMode);
+  const plan = studyPlan();
+  const routeMode = nextPlanMode(plan);
   const quickCount = formatQuestionCount(sessionSize("quick"));
   const examCount = formatQuestionCount(sessionSize("exam"));
-  const dailyPercent = Math.round(clamp((s.todayAnswered / profile.dailyGoal) * 100, 0, 100));
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t("dashboard.morning") : hour < 18 ? t("dashboard.afternoon") : t("dashboard.evening");
   main.innerHTML = `
     <div class="page">
       <header class="page-header">
-        <div><span class="eyebrow">${t("dashboard.category")}</span><h1>${greeting}</h1><p>${t("dashboard.subtitle")}</p></div>
-        <span class="date-chip">${formatDate()}</span>
+        <div><span class="eyebrow">${t("dashboard.category")}</span><h1>${greeting}</h1><p>${t("plan.subtitle", { language: planLanguage(plan) })}</p></div>
+        <button class="date-chip plan-edit" data-edit-plan>${t("plan.targetDate", { date: planDate(plan.config.examDate) })} ✎</button>
       </header>
       <section class="hero-grid">
         <article class="card route-card">
           <div>
-            <span class="eyebrow">${t("dashboard.todayRoute")}</span>
-            <h2>${s.due ? t("dashboard.reviewFade") : t("dashboard.learnNew", { questions: quickCount })}</h2>
-            <p>${s.due ? t(s.due === 1 ? "dashboard.dueDescription.one" : "dashboard.dueDescription", { count: formatQuestionCount(s.due) }) : t("dashboard.spacingDescription")}</p>
-            <div class="route-meta"><span><strong>${formatQuestionCount(routeCount)}</strong></span><span><strong>≈ ${formatMinuteCount(Math.ceil(routeCount * .7))}</strong></span><span><strong>${formatNumber(s.todayAnswered)}/${formatNumber(profile.dailyGoal)}</strong> ${t("dashboard.dailyGoal")}</span></div>
-            <button class="button button-accent" data-start="${routeMode}">${s.due ? t("dashboard.reviewNow") : t("dashboard.startToday")} →</button>
+            <span class="eyebrow">${t("plan.day", { day: formatNumber(plan.day), total: formatNumber(plan.totalDays) })} · ${t(`plan.phase.${plan.phase}`)}</span>
+            <h2>${plan.daysLeft > 0 ? t("plan.daysLeft", { count: formatDayCount(plan.daysLeft) }) : t(plan.daysLeft === 0 ? "plan.examToday" : "plan.datePassed")}</h2>
+            <p>${t(`plan.description.${plan.phase}`)}</p>
+            ${plan.unseen && plan.phase !== "cover" && plan.daysLeft > 0 ? `<p class="plan-warning">${t("plan.catchUp", { count: formatQuestionCount(plan.unseen) })}</p>` : ""}
+            <div class="route-meta"><span><strong>${planLanguage(plan)}</strong></span><span><strong>${t("plan.remainingTime", { minutes: formatMinuteCount(plan.studyMinutes) })}</strong></span><span>${t("plan.answersToday", { count: formatNumber(s.todayAnswered) })}</span></div>
+            ${routeMode ? `<button class="button button-accent" data-start="${routeMode}">${t(`plan.start.${routeMode}`)} →</button>` : `<a class="button button-primary plan-link" href="#practice">${t(plan.daysLeft > 0 ? "plan.todayDone" : "plan.openPractice")} →</a>`}
           </div>
-          <div class="progress-ring" style="--progress:${dailyPercent}"><span>${dailyPercent}%<small>${t("dashboard.today")}</small></span></div>
+          <div class="progress-ring" style="--progress:${plan.dailyPercent}"><span>${plan.tasks.filter((task) => task.met).length}/4<small>${t("plan.tasksDone")}</small></span></div>
         </article>
         <article class="card readiness-card">
-          <span class="eyebrow" style="color:var(--lime)">${t("dashboard.readiness")}</span>
-          <div class="readiness-score">${s.readiness}%</div>
-          <div class="readiness-label">${s.readiness >= 85 ? t("dashboard.readyBook") : s.readiness >= 60 ? t("dashboard.gettingClose") : t("dashboard.building")}</div>
-          <p>${s.readiness >= 85 ? t("dashboard.keepStable") : t("dashboard.readinessAim")}</p>
+          <span class="eyebrow" style="color:var(--lime)">${t("plan.studyTargets")}</span>
+          <div class="readiness-score">${plan.readiness.met}/4</div>
+          <div class="readiness-label">${t(plan.readiness.ready ? "plan.targetsMet" : "plan.targetsPending")}</div>
+          <p>${t("plan.safetyMargin")}</p>
           <div class="meter" style="--value:${s.readiness}%"><span></span></div>
         </article>
       </section>
 
-      <div class="section-heading"><div><h2>${t("dashboard.nextMoves")}</h2><p>${t("dashboard.nextMovesDescription")}</p></div><a class="text-link" href="#practice">${t("dashboard.allModes")}</a></div>
+      <div class="section-heading"><div><h2>${t("plan.todayWork")}</h2><p>${t("plan.todayHelp")}</p></div><a class="text-link" href="#practice">${t("dashboard.allModes")}</a></div>
+      <section class="daily-task-grid">${plan.tasks.map((task, index) => `<article class="task-card ${task.met ? "task-complete" : ""}"><div class="task-top"><span class="task-icon">${task.met ? "✓" : String(index + 1).padStart(2, "0")}</span><span class="mode-kicker">${t(task.met ? "plan.met" : "plan.pending")}</span></div><h3>${t(`plan.task.${task.key}`)}</h3><strong class="task-target">${task.key === "repair" ? t("plan.remaining", { count: formatNumber(task.target) }) : `${formatNumber(task.done)}/${formatNumber(task.target)}`}</strong><p>${t(`plan.taskHelp.${task.key}`, { language: planLanguage(plan) })}</p><button data-start="${task.mode}" ${task.met ? "disabled" : ""}>${t(`plan.start.${task.mode}`)} →</button></article>`).join("")}</section>
+      <div class="section-heading"><h2>${t("plan.evidenceTitle")}</h2><a class="text-link" href="#progress">${t("dashboard.detailedProgress")}</a></div>
+      ${readinessMarkup(plan)}
+      <details class="plan-roadmap"><summary>${t("plan.roadmap")}</summary>${planScheduleMarkup(plan)}</details>
+      <div class="section-heading"><h2>${t("plan.weakTopics")}</h2></div>
+      <section class="weak-topic-grid">${plan.readiness.topics.filter((topic) => !topic.ready).slice(0, 3).map((topic) => `<article class="task-card"><h3>${escapeHtml(topicName(topic.topic, profile.uiLanguage))}</h3><p>${t("plan.weakTopicEvidence", { seen: formatNumber(topic.seen), total: formatNumber(topic.total), accuracy: formatNumber(Math.round(topic.accuracy * 100)) })}</p><button data-topic="${escapeHtml(topic.topic)}">${t("plan.practiceTopic")} →</button></article>`).join("") || `<p class="muted">${t("plan.topicsMet")}</p>`}</section>
+      <div class="section-heading"><h2>${t("plan.extraPractice")}</h2></div>
       <section class="task-grid">
         <article class="task-card"><div class="task-top"><span class="task-icon">01</span><span class="mode-kicker">${t("dashboard.learn")}</span></div><h3>${t("dashboard.newQuestions")}</h3><p>${t("dashboard.newQuestionsDescription", { questions: quickCount })}</p><button data-start="quick">${t("dashboard.startQuick")}</button></article>
         <article class="task-card"><div class="task-top"><span class="task-icon">↻</span><span class="mode-kicker">${t("dashboard.recall")}</span></div><h3>${t("dashboard.dueForReview", { count: formatNumber(s.due) })}</h3><p>${t("dashboard.intervals")}</p><button data-start="review">${t("dashboard.reviewDue")}</button></article>
@@ -330,21 +380,20 @@ function renderDashboard() {
 
 function renderPractice() {
   const s = getStats();
+  const plan = studyPlan();
   main.innerHTML = `
     <div class="page">
       <header class="page-header"><div><span class="eyebrow">${t("practice.eyebrow")}</span><h1>${t("practice.title")}</h1><p>${t("practice.subtitle")}</p></div><span class="date-chip">${t("practice.loaded", { questions: formatQuestionCount(questions.length) })}</span></header>
       <section class="mode-grid">
-        <article class="card mode-card featured"><span class="mode-badge">${t("practice.recommended")}</span><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("quick")) })}</span><h3>${t("practice.quickTitle")}</h3><p>${t("practice.quickDescription")}</p><button class="button button-accent" data-start="quick">${t("practice.start")}</button></article>
+        <article class="card mode-card featured"><span class="mode-badge">${t("practice.recommended")}</span><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("learn")) })}</span><h3>${t("plan.task.new")}</h3><p>${t("plan.learnDescription", { count: formatQuestionCount(plan.unseen), target: formatNumber(plan.newTarget) })}</p><button class="button button-accent" data-start="learn">${t("plan.start.learn")}</button></article>
+        <article class="card mode-card"><span class="mode-badge">${t("practice.available", { count: formatNumber(plan.readiness.unresolved) })}</span><span class="mode-kicker">${t("practice.repair")}</span><h3>${t("plan.task.repair")}</h3><p>${t("plan.repairDescription")}</p><button class="button button-primary" data-start="repair">${t("plan.start.repair")}</button></article>
+        <article class="card mode-card"><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("quick")) })}</span><h3>${t("practice.quickTitle")}</h3><p>${t("practice.quickDescription")}</p><button class="button button-primary" data-start="quick">${t("practice.start")}</button></article>
         <article class="card mode-card"><span class="mode-badge">${t("practice.available", { count: formatNumber(s.due) })}</span><span class="mode-kicker">${t("practice.spaced")}</span><h3>${t("practice.dueTitle")}</h3><p>${t("practice.dueDescription")}</p><button class="button button-primary" data-start="review">${t("dashboard.reviewDue")}</button></article>
         <article class="card mode-card"><span class="mode-badge">${t(s.mistakes === 1 ? "practice.weakSpots.one" : "practice.weakSpots", { count: formatNumber(s.mistakes) })}</span><span class="mode-kicker">${t("practice.repair")}</span><h3>${t("practice.clinic")}</h3><p>${t("practice.clinicDescription")}</p><button class="button button-secondary" data-start="mistakes">${t("practice.fix")}</button></article>
         <article class="card mode-card"><span class="mode-badge">${t("practice.pass", { correct: formatNumber(Math.max(0, sessionSize("exam") - 3)), total: formatNumber(sessionSize("exam")) })}</span><span class="mode-kicker">${t("practice.examMeta", { questions: formatQuestionCount(sessionSize("exam")) })}</span><h3>${t("practice.mockTitle")}</h3><p>${t("practice.mockFullDescription")}</p><button class="button button-primary" data-start="exam">${t("practice.startTimed")}</button></article>
       </section>
-      <div class="section-heading"><div><h2>${t("practice.strategy")}</h2><p>${t("practice.strategyDescription")}</p></div></div>
-      <section class="study-plan">
-        <article class="plan-row"><span class="plan-day">${t("practice.phase1")}</span><div><h3>${t("practice.coverageTitle")}</h3><p>${t("practice.coverageDescription")}</p></div><span class="plan-status">${t("practice.minutesDay")}</span></article>
-        <article class="plan-row"><span class="plan-day">${t("practice.phase2")}</span><div><h3>${t("practice.recallTitle")}</h3><p>${t("practice.recallDescription")}</p></div><span class="plan-status">${t("practice.dueFirst")}</span></article>
-        <article class="plan-row"><span class="plan-day">${t("practice.phase3")}</span><div><h3>${t("practice.pressureTitle")}</h3><p>${t("practice.pressureDescription")}</p></div><span class="plan-status">${t("practice.target")}</span></article>
-      </section>
+      <div class="section-heading"><div><h2>${t("plan.roadmap")}</h2><p>${t("plan.targetDate", { date: planDate(plan.config.examDate) })}</p></div><button class="button button-ghost" data-edit-plan>${t("plan.edit")}</button></div>
+      ${planScheduleMarkup(plan)}
     </div>`;
   bindStartButtons();
 }
@@ -356,9 +405,19 @@ function dueQuestions(now = Date.now()) {
   });
 }
 
-function selectForMode(mode) {
+function selectForMode(mode, topic) {
+  if (topic) {
+    const pool = questions.filter((question) => question.topic === topic);
+    const unresolved = unresolvedQuestions(pool, profile);
+    const unseen = selectNewQuestions(pool, profile, SESSION_LIMITS.quick);
+    const seen = shuffle(pool.filter((question) => !unresolved.includes(question) && !unseen.includes(question)));
+    return [...shuffle(unresolved), ...unseen, ...seen].slice(0, SESSION_LIMITS.quick);
+  }
+  if (mode === "learn") return selectNewQuestions(questions, profile, SESSION_LIMITS.learn);
+  if (mode === "repair") return shuffle(unresolvedQuestions(questions, profile)).slice(0, SESSION_LIMITS.repair);
   if (mode === "review") {
-    return shuffle(dueQuestions()).slice(0, SESSION_LIMITS.review);
+    return shuffle(dueQuestions()).sort((a, b) => (profile.questionProgress[a.id].streak || 0) - (profile.questionProgress[b.id].streak || 0)
+      || Date.parse(profile.questionProgress[a.id].nextReview || 0) - Date.parse(profile.questionProgress[b.id].nextReview || 0)).slice(0, SESSION_LIMITS.review);
   }
   if (mode === "mistakes") {
     return shuffle(mistakeQuestions()).slice(0, SESSION_LIMITS.mistakes);
@@ -377,14 +436,24 @@ function mistakeQuestions() {
 }
 
 function sessionSize(mode) {
-  const available = mode === "review" ? dueQuestions().length : mode === "mistakes" ? mistakeQuestions().length : questions.length;
+  const available = mode === "review" ? dueQuestions().length : mode === "mistakes" ? mistakeQuestions().length
+    : mode === "learn" ? questions.filter((question) => !profile.questionProgress[question.id]
+      || !(profile.questionProgress[question.id].correct || profile.questionProgress[question.id].wrong)).length
+      : mode === "repair" ? unresolvedQuestions(questions, profile).length : questions.length;
   return Math.min(SESSION_LIMITS[mode], available);
 }
 
-function startSession(mode) {
-  const selected = selectForMode(mode);
-  if (!selected.length) { showToast(t(mode === "review" ? "practice.nothingDue" : mode === "mistakes" ? "practice.noMistakes" : "practice.answerFirst")); return; }
-  session = createQuizSession(mode, selected, profile.language);
+async function startSession(mode, topic) {
+  if (!Object.hasOwn(SESSION_LIMITS, mode)) return;
+  const selected = selectForMode(mode, topic);
+  if (!selected.length) { showToast(t(mode === "review" ? "practice.nothingDue" : mode === "mistakes" || mode === "repair" ? "practice.noMistakes" : mode === "learn" ? "plan.noNew" : "practice.answerFirst")); return; }
+  const language = ["exam", "learn", "repair", "review"].includes(mode) || topic ? studyPlan().config.language : profile.language;
+  if (language === "ru") {
+    try { await ensureRussianCorpus(); }
+    catch { showToast(t("quiz.russianLoadError")); return; }
+  }
+  session = createQuizSession(mode, selected, language);
+  session.topic = topic;
   location.hash = "quiz";
   renderQuestion();
   scrollQuizIntoView();
@@ -412,7 +481,11 @@ function updateQuizLayout() {
 
 window.matchMedia?.("(max-width: 720px)")?.addEventListener("change", updateQuizLayout);
 
-function bindStartButtons() { $$('[data-start]').forEach((button) => button.addEventListener("click", () => startSession(button.dataset.start))); }
+function bindStartButtons() {
+  $$('[data-start]').forEach((button) => button.addEventListener("click", () => { void startSession(button.dataset.start); }));
+  $$('[data-topic]').forEach((button) => button.addEventListener("click", () => { void startSession("quick", button.dataset.topic); }));
+  $$('[data-edit-plan]').forEach((button) => button.addEventListener("click", (event) => { openSettings(event); $("#examDate").focus(); }));
+}
 
 function explanationSourceLink(question) {
   return question.explanationSource ? `<a class="text-link rule-source-link" href="${escapeHtml(question.explanationSource)}" target="_blank" rel="noopener noreferrer">${t("quiz.ruleSource")} ↗</a>` : "";
@@ -586,9 +659,15 @@ async function setQuestionLanguage(language) {
     catch { showToast(t("quiz.russianLoadError")); return; }
   }
   profile.language = language;
-  if (session) session.questionLanguage = language;
+  setSessionLanguage(language);
   saveProfile();
   renderQuestion();
+}
+
+function setSessionLanguage(language) {
+  if (!session) return;
+  if (session.mode === "exam" && !session.result && session.questionLanguage !== language) session.languageChanged = true;
+  session.questionLanguage = language;
 }
 
 function chooseAnswer(key) {
@@ -646,7 +725,8 @@ function recordQuestion(question, isCorrect) {
   const intervals = [1, 3, 7, 14, 30];
   const days = isCorrect ? intervals[Math.min(streak - 1, intervals.length - 1)] : 0;
   const nextReview = new Date(now.getTime() + days * 86400000).toISOString();
-  profile.questionProgress[question.id] = { ...incrementAnswerCounts(current, isCorrect, deviceId), streak, lastAnswer: now.toISOString(), nextReview };
+  const firstSeen = (current.correct || 0) + (current.wrong || 0) === 0 ? { firstSeenAt: now.toISOString() } : {};
+  profile.questionProgress[question.id] = { ...incrementAnswerCounts(current, isCorrect, deviceId), ...firstSeen, streak, lastAnswer: now.toISOString(), nextReview };
   recordStudyActivity(profile, deviceId, now);
   saveProfile();
 }
@@ -666,6 +746,8 @@ function finishSession() {
     completedAt: new Date().toISOString(),
     durationSeconds: Math.round((Date.now() - session.startedAt) / 1000),
     activityRecorded: true,
+    language: session.questionLanguage,
+    languageChanged: Boolean(session.languageChanged),
   };
   profile.sessions = [...profile.sessions, result].slice(-100);
   const finished = session;
@@ -690,9 +772,11 @@ function renderResult(finished, result) {
   const summary = finished.mode === "exam"
     ? passed ? t("result.examPassed") : t("result.examFailed", { count: formatNumber(errors) })
     : t("result.practiceHelp");
-  main.innerHTML = `<div class="page"><article class="card result-card"><span class="eyebrow">${finished.mode === "exam" ? t("result.mockComplete") : t("result.practiceComplete")}</span><div class="result-orb">${formatNumber(result.correct)}/${formatNumber(result.total)}</div><h1>${passed ? t("result.strong") : t("result.useful")}</h1><p>${summary}</p><div class="result-stats"><div><strong>${result.percent}%</strong><span>${t("result.accuracy")}</span></div><div><strong>${formatNumber(errors)}</strong><span>${errorLabel}</span></div><div><strong>${formatMinuteCount(Math.ceil(result.durationSeconds / 60))}</strong><span>${t("result.time")}</span></div></div><div class="result-actions"><button class="button button-secondary" id="resultHome">${t("result.dashboard")}</button><button class="button button-primary" id="resultAgain">${t("result.again")}</button></div></article>${review}</div>`;
+  const next = nextPlanMode();
+  main.innerHTML = `<div class="page"><article class="card result-card"><span class="eyebrow">${finished.mode === "exam" ? t("result.mockComplete") : t("result.practiceComplete")}</span><div class="result-orb">${formatNumber(result.correct)}/${formatNumber(result.total)}</div><h1>${passed ? t("result.strong") : t("result.useful")}</h1><p>${summary}</p><div class="result-stats"><div><strong>${result.percent}%</strong><span>${t("result.accuracy")}</span></div><div><strong>${formatNumber(errors)}</strong><span>${errorLabel}</span></div><div><strong>${formatMinuteCount(Math.ceil(result.durationSeconds / 60))}</strong><span>${t("result.time")}</span></div></div><div class="result-actions"><button class="button button-secondary" id="resultHome">${t("result.dashboard")}</button><button class="button button-primary" id="resultAgain">${t("result.again")}</button>${next ? `<button class="button button-accent" data-start="${next}">${t(`plan.start.${next}`)} →</button>` : ""}</div></article>${review}</div>`;
   $("#resultHome").addEventListener("click", () => { session = null; location.hash = "dashboard"; });
-  $("#resultAgain").addEventListener("click", () => startSession(finished.mode));
+  $("#resultAgain").addEventListener("click", () => startSession(finished.mode, finished.topic));
+  bindStartButtons();
   $$(".review-image img").forEach((image) => image.addEventListener("error", () => {
     if (!image.dataset.remoteFallback) { image.dataset.remoteFallback = "true"; image.src = image.dataset.remoteImage; }
   }));
@@ -725,6 +809,7 @@ function formatTime(seconds) { return `${String(Math.floor(seconds / 60)).padSta
 
 function renderProgress() {
   const s = getStats();
+  const plan = studyPlan();
   const last7 = Array.from({ length: 7 }, (_, offset) => {
     const date = new Date(); date.setDate(date.getDate() - (6 - offset));
     return { label: new Intl.DateTimeFormat(currentLocale(), { weekday: "short" }).format(date), count: answersOnDay(profile, date) };
@@ -736,10 +821,11 @@ function renderProgress() {
     const correct = topicQuestions.reduce((sum, question) => sum + (profile.questionProgress[question.id]?.correct || 0), 0);
     const wrong = topicQuestions.reduce((sum, question) => sum + (profile.questionProgress[question.id]?.wrong || 0), 0);
     const coverage = topicQuestions.length ? seen / topicQuestions.length : 0;
-    return { name: names[profile.uiLanguage] || names.en, seen, total: topicQuestions.length, coverage, percent: Math.round(coverage * 100), attempts: correct + wrong, accuracy: correct + wrong ? Math.round(correct / (correct + wrong) * 100) : 0 };
+    return { topic: pt, name: names[profile.uiLanguage] || names.en, seen, total: topicQuestions.length, coverage, percent: Math.round(coverage * 100), attempts: correct + wrong, accuracy: correct + wrong ? Math.round(correct / (correct + wrong) * 100) : 0 };
   }).sort((a, b) => (topicOrder === "coverage" ? b.coverage - a.coverage : a.coverage - b.coverage || a.accuracy - b.accuracy)
     || a.name.localeCompare(b.name, currentLocale()));
-  main.innerHTML = `<div class="page"><header class="page-header"><div><span class="eyebrow">${t("progress.eyebrow")}</span><h1>${t("progress.title")}</h1><p>${t("progress.subtitle")}</p></div><span class="date-chip">${t("progress.seen", { questions: formatQuestionCount(s.seen) })}</span></header><section class="stat-grid"><article class="card stat-card"><span>${t("progress.readiness")}</span><strong>${s.readiness}%</strong><small>${t("progress.target85")}</small></article><article class="card stat-card"><span>${t("progress.coverage")}</span><strong>${Math.round(s.coverage)}%</strong><small>${formatNumber(s.seen)}/${formatNumber(questions.length)}</small></article><article class="card stat-card"><span>${t("progress.accuracy")}</span><strong>${s.accuracy}%</strong><small>${t("progress.target90")}</small></article><article class="card stat-card"><span>${t("progress.mockAverage")}</span><strong>${s.mock}%</strong><small>${t("progress.lastFive")}</small></article></section><div class="section-heading"><h2>${t("progress.activity")}</h2></div><section class="progress-layout"><article class="card chart-card"><h3>${t("progress.answered")}</h3><p>${t("progress.lastSeven")}</p><div class="bar-chart">${last7.map((day, i) => `<div class="bar ${i === 6 ? "active" : ""}" style="--height:${Math.max(3, (day.count / max) * 100)}%" role="img" aria-label="${escapeHtml(day.label)}: ${formatQuestionCount(day.count)}"><span>${day.label}</span></div>`).join("")}</div></article><article class="card coverage-card"><h3>${t("progress.syllabus")}</h3><p>${t(topicOrder === "coverage" ? "progress.topicsCoveredFirst" : "progress.topicsFirst")}</p><label class="topic-sort" for="topicOrder">${t("progress.topicOrder")}<select id="topicOrder"><option value="weakest" ${topicOrder === "weakest" ? "selected" : ""}>${t("progress.weakestFirst")}</option><option value="coverage" ${topicOrder === "coverage" ? "selected" : ""}>${t("progress.coveredFirst")}</option></select></label><div class="topic-list">${topicStats.map((topic) => `<div class="topic-row"><strong>${escapeHtml(topic.name)}</strong><span>${formatNumber(topic.seen)}/${formatNumber(topic.total)}</span><small>${topic.attempts ? t("progress.topicAccuracy", { percent: formatNumber(topic.accuracy) }) : t("progress.notPracticed")}</small><div class="meter" style="--value:${topic.percent}%"><span></span></div></div>`).join("")}</div></article></section></div>`;
+  main.innerHTML = `<div class="page"><header class="page-header"><div><span class="eyebrow">${t("progress.eyebrow")}</span><h1>${t("progress.title")}</h1><p>${t("progress.subtitle")}</p></div><span class="date-chip">${t("progress.seen", { questions: formatQuestionCount(s.seen) })}</span></header><section class="stat-grid"><article class="card stat-card"><span>${t("plan.studyTargets")}</span><strong>${plan.readiness.met}/4</strong><small>${t(plan.readiness.ready ? "plan.targetsMet" : "plan.targetsPending")}</small></article><article class="card stat-card"><span>${t("progress.coverage")}</span><strong>${Math.round(s.coverage)}%</strong><small>${formatNumber(s.seen)}/${formatNumber(questions.length)}</small></article><article class="card stat-card"><span>${t("progress.accuracy")}</span><strong>${s.accuracy}%</strong><small>${t("progress.target90")}</small></article><article class="card stat-card"><span>${t("progress.mockAverage")}</span><strong>${s.mock}%</strong><small>${t("plan.recentMocks", { language: planLanguage(plan) })}</small></article></section>${readinessMarkup(plan)}<div class="section-heading"><h2>${t("progress.activity")}</h2></div><section class="progress-layout"><article class="card chart-card"><h3>${t("progress.answered")}</h3><p>${t("progress.lastSeven")}</p><div class="bar-chart">${last7.map((day, i) => `<div class="bar ${i === 6 ? "active" : ""}" style="--height:${Math.max(3, (day.count / max) * 100)}%" role="img" aria-label="${escapeHtml(day.label)}: ${formatQuestionCount(day.count)}"><span>${day.label}</span></div>`).join("")}</div></article><article class="card coverage-card"><h3>${t("progress.syllabus")}</h3><p>${t(topicOrder === "coverage" ? "progress.topicsCoveredFirst" : "progress.topicsFirst")}</p><label class="topic-sort" for="topicOrder">${t("progress.topicOrder")}<select id="topicOrder"><option value="weakest" ${topicOrder === "weakest" ? "selected" : ""}>${t("progress.weakestFirst")}</option><option value="coverage" ${topicOrder === "coverage" ? "selected" : ""}>${t("progress.coveredFirst")}</option></select></label><div class="topic-list">${topicStats.map((topic) => `<div class="topic-row"><strong><button class="topic-practice" data-topic="${escapeHtml(topic.topic)}">${escapeHtml(topic.name)} ↗</button></strong><span>${formatNumber(topic.seen)}/${formatNumber(topic.total)}</span><small>${topic.attempts ? t("progress.topicAccuracy", { percent: formatNumber(topic.accuracy) }) : t("progress.notPracticed")}</small><div class="meter" style="--value:${topic.percent}%"><span></span></div></div>`).join("")}</div></article></section></div>`;
+  bindStartButtons();
   $("#topicOrder").addEventListener("change", (event) => {
     topicOrder = event.target.value;
     renderProgress();
@@ -789,7 +875,7 @@ async function setUILanguage(language) {
   profile.uiLanguage = normalized;
   if (normalized !== "ru") {
     profile.language = normalized;
-    if (session) session.questionLanguage = normalized;
+    setSessionLanguage(normalized);
   }
   saveProfile();
   applyStaticTranslations();
@@ -800,8 +886,9 @@ async function setUILanguage(language) {
     showToast(t("quiz.russianLoading"));
     try { await ensureRussianCorpus(); }
     catch { showToast(t("quiz.russianLoadError")); return; }
+    if (profile.uiLanguage !== "ru") return;
     profile.language = "ru";
-    if (session) session.questionLanguage = "ru";
+    setSessionLanguage("ru");
     saveProfile();
     updateStorageSummary();
     render();
@@ -812,6 +899,7 @@ let settingsOpener = null;
 function openSettings(event) {
   settingsOpener = event?.currentTarget || document.activeElement;
   updateStorageSummary();
+  updateExamPlanForm(true);
   updateSyncUI();
   $("#storageStatus").textContent = "";
   modal.hidden = false;
@@ -851,7 +939,36 @@ function updateStorageSummary() {
   const stats = getStats();
   $("#storageSummary").textContent = t("storage.summary", { questions: formatQuestionCount(stats.seen), sessions: formatSessionCount(profile.sessions.length) });
   $("#lastSaved").textContent = profile.updatedAt ? new Date(profile.updatedAt).toLocaleString(currentLocale(), { dateStyle: "medium", timeStyle: "short" }) : t("storage.notSaved");
+  updateExamPlanForm();
 }
+
+function updateExamPlanForm(force = false) {
+  const form = $("#examPlanForm");
+  if (!force && form?.contains?.(document.activeElement)) return;
+  const config = profile.examPlan || suggestedExamPlan;
+  $("#examDate").value = config.examDate;
+  $("#examLanguage").value = config.language;
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  $("#examDate").min = createExamPlan(tomorrow).startedOn;
+}
+
+$("#examPlanForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const status = $("#examPlanStatus");
+  const today = createExamPlan().startedOn;
+  const config = { ...(profile.examPlan || suggestedExamPlan), examDate: $("#examDate").value, language: $("#examLanguage").value };
+  if (config.startedOn > today) config.startedOn = today;
+  if (!validExamPlan(config) || config.examDate <= today) { status.textContent = t("plan.invalidDate"); return; }
+  const candidate = { ...profile, examPlan: config, updatedAt: new Date().toISOString() };
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(candidate)); }
+  catch { status.textContent = t("plan.saveError"); return; }
+  profile = candidate;
+  syncController?.schedule();
+  updateExamPlanForm(true);
+  updateStorageSummary();
+  render();
+  status.textContent = t("plan.saved");
+});
 
 function updateSyncUI(nextState = syncState) {
   syncState = { ...syncState, ...nextState };
@@ -961,7 +1078,7 @@ $("#resetData").addEventListener("click", async () => {
   const isSynced = Boolean(syncState.configured && syncState.hasSyncKey);
   const prompt = isSynced ? t("storage.eraseSyncedConfirm") : t("storage.eraseLocalConfirm");
   if (!confirm(prompt)) return;
-  const preferences = { uiLanguage: profile.uiLanguage, language: profile.language };
+  const preferences = { uiLanguage: profile.uiLanguage, language: profile.language, examPlan: profile.examPlan || suggestedExamPlan };
   localStorage.removeItem(PROFILE_KEY);
   profile = { ...defaultProfile(), ...preferences, resetAt: new Date().toISOString() };
   saveProfile();

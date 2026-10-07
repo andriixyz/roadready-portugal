@@ -9,7 +9,7 @@
     "images": "node scripts/fetch_question_images.mjs",
     "check:capture": "node scripts/check_capture.mjs",
     "check:quiz": "node scripts/check_quiz.mjs && node scripts/check_quiz_results.mjs",
-    "check:study": "node scripts/check_study_flows.mjs",
+    "check:study": "node scripts/check_study_flows.mjs && node scripts/check_exam_plan.mjs",
     "check:backup": "node scripts/check_backup.mjs",
     "check:content": "node scripts/check_content.mjs",
     "check:verification": "node scripts/check_verification.mjs",

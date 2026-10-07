@@ -25,18 +25,32 @@ The corpus, profile and active quiz are module-level state. Pure quiz transition
 
 ## Quiz and study behavior
 
+### Exam preparation (7 October 2026)
+
+`exam-plan.js` derives calendar deadlines, adaptive daily targets, topic coverage/latest-answer accuracy, unresolved latest mistakes and language-specific timed-mock evidence. The initial personal target is **27 October 2026, English**, with a start date of 7 October. `profile.examPlan` overrides it; a missing legacy preference adopts the target on the next answer/save. Dates never roll forward after expiry. Settings saves a validated future date atomically before replacing memory; changing the target does not change an active session or deadline. The plan is synced/exported/imported and retained during progress reset.
+
+For the 20-day plan, cover unseen questions in 16 days, reserve three days for two mocks daily and one lighter last day. Daily new-question quota is `ceil((unseen + newToday) / max(1, daysLeft - finalDays))`, so it remains stable during the day and catches up after missed days. Shorter plans reserve a proportional one-to-four-day final phase. Recall counts are today's checked/submitted answers minus today's first encounters; mocks contribute to both counts. Recall targets cap the current due/answered workload at the greater of 40 or 40% of the new-question quota, with a 20-question cap on the final day. The time estimate uses 0.7 minutes per new/repair question, 0.5 per recall and 30 per remaining mock; it is an estimate, not a time budget or eligibility rule.
+
+`learn` selects at most 20 unseen questions, rotating through least-covered topics; it never falls back to seen questions. `repair` selects at most 20 questions whose latest answer was wrong, using the question streak (a conservative count comparison for legacy records without a streak). Correct answers remove them from repair. The original `mistakes` mode keeps its `wrong > correct` contract. Due review remains due-only and prioritises low streak, then older due dates. Topic buttons start targeted ten-question practice. Plan modes and topic practice use the configured plan language; ordinary quick practice and the original mistake clinic retain the current question language.
+
+Four preparation goals replace the weighted readiness percentage: complete bank coverage; all topics with at least 20 encounters (or every question in smaller topics) and 90% latest-answer accuracy; no unresolved latest mistakes; and the last five full 30-question mocks, in the configured language and within the last seven local calendar days, all at least 28/30 within 1,800 seconds and spanning at least three dates. A newer failed mock replaces older success. Language changes during an active mock invalidate its language-specific evidence; old summaries without language/duration remain historical data. Samples cannot satisfy any preparation goal. These are app study targets, not official readiness or a promise of passing. IMT's published B/B1 format confirms the existing 30 questions, 30 minutes and 27/30 pass mark; the app's 28/30 target adds a study margin.
+
+New question progress records preserve `firstSeenAt` so daily first encounters do not increase on retries/reloads. Sync merges the earliest first-seen date alongside the existing per-device maxima and reset generations. Session summaries now store `language` and `languageChanged`, and validation accepts `learn`/`repair`. Invalid plan/first-seen/session metadata still follows strict atomic backup rejection and independent startup recovery. A newer client/profile without a plan cannot delete an existing plan during merge. `check:study` now also runs `scripts/check_exam_plan.mjs` for deadlines/DST, quota stability/catch-up, balance, recent-language mock criteria, sync and backup contracts.
+
 | Mode | Maximum | Selection | Progress recorded |
 | --- | --- | --- | --- |
 | `quick` | 10 | Shuffled unseen questions first, then seen ones | When each answer is checked |
 | `review` | 20 | Seen questions whose `nextReview` is absent or due | When each answer is checked |
 | `mistakes` | 20 | Questions with more wrong than correct attempts | When each answer is checked |
 | `exam` | 30 | Shuffled corpus | At submission, including unanswered items as wrong |
+| `learn` | 20 | Unseen questions, least-covered topics first | When each answer is checked |
+| `repair` | 20 | Latest wrong answers, shuffled | When each answer is checked |
 
 Limits shrink with availability. Empty review/mistakes modes show a toast without starting another kind of session. `sessionSize()` also supplies the UI counts and time estimates.
 
 `picks` holds draft choices; `answers` holds checked practice answers or editable mock choices. Navigating restores the appropriate selection and feedback. `firstUnansweredIndex()` uses `answers`, so an unchecked practice draft still needs attention. Checked practice answers lock; mock choices can change until submission.
 
-The mock is configured for 30 minutes and a pass at at most three errors. The timer derives remaining time from `endsAt`; clearing/restarting its interval on a render must not reset that deadline. Expiry submits automatically. Practice uses an 80% threshold for the positive result headline. These describe app scoring, not independently verified exam requirements.
+The mock is configured for 30 minutes and a pass at at most three errors, matching the [published IMT B/B1 format](https://imt.madeira.gov.pt/index.php/pt/transportes-terrestres/condutores/provas-teoricas). The timer derives remaining time from `endsAt`; clearing/restarting its interval on a render must not reset that deadline. Expiry submits automatically. Practice uses an 80% threshold for the positive result headline.
 
 `recordQuestion()` updates answer counters, per-question streak, review date and daily activity, then saves locally. Correct-answer intervals are 1, 3, 7, 14 and 30 days, capped at 30; a wrong answer resets the question streak and is due immediately. Finishing adds a session summary with `activityRecorded: true` and retains the latest 100 summaries. Practice answers are not counted again at completion.
 
@@ -46,7 +60,7 @@ At phone widths (720 px or less), the question text appears above the full road 
 
 Leaving an unfinished quiz requires confirmation, including browser Back. Cancel restores `#quiz` with the same session. Reload/close requests the browser's leave warning. Confirmed departure discards the in-memory session; saved checked practice progress remains.
 
-Dashboard readiness is a UI heuristic: 35% corpus coverage, 35% answer accuracy and 30% mean percentage of the last five mock summaries, clamped to 0–100 with a minimum of 8 once a question has been seen. It is not an official assessment. Progress displays all 16 mapped topics; default ordering uses unrounded coverage ascending, then accuracy, then localized name. The alternative sorts coverage descending.
+Dashboard and Progress show the four preparation goals above. Counts include only questions in the currently loaded corpus, and the mock average uses eligible recent language-specific mocks. Progress displays all 16 mapped topics; default ordering uses unrounded coverage ascending, then lifetime answer accuracy, then localized name. The alternative sorts coverage descending. Preparation goals separately use latest-answer accuracy.
 
 ## Stored profile and backups
 
@@ -61,7 +75,7 @@ Dashboard readiness is a UI heuristic: 35% corpus coverage, 35% answer accuracy 
 
 The browser device ID and private sync key serve different purposes: linked devices share the sync key but have separate counter IDs.
 
-Profile fields are `startedAt`, `updatedAt`, optional `resetAt`, `dailyGoal`, `uiLanguage`, `language`, `questionProgress`, `sessions`, `answerActivity` and stored `streak`. Each question record contains totals, legacy `baseCorrect`/`baseWrong`, `countsByDevice`, its correct-answer streak, `lastAnswer` and `nextReview`. Session records contain ID, mode, correct/total/percent, completion time, duration and the activity marker. Active questions and draft answers are not saved.
+Profile fields are `startedAt`, `updatedAt`, optional `resetAt`, `dailyGoal` (legacy preference), `examPlan`, `uiLanguage`, `language`, `questionProgress`, `sessions`, `answerActivity` and stored `streak`. Each question record contains totals, legacy `baseCorrect`/`baseWrong`, `countsByDevice`, its correct-answer streak, optional `firstSeenAt`, `lastAnswer` and `nextReview`. Session records contain ID, mode, correct/total/percent, completion time, duration, the activity marker and optional `language`/`languageChanged`. Active questions and draft answers are not saved.
 
 Activity is shaped as `answerActivity[local YYYY-MM-DD][deviceId] = count`. Merge uses the maximum counter for each device/day, then the UI sums devices. Older summaries without `activityRecorded` contribute their completed-session totals for compatibility. The visible streak is recomputed across consecutive local dates, allowing yesterday's streak while today is still pending; calendar stepping handles daylight-saving changes.
 
@@ -147,8 +161,10 @@ The Pages workflow runs on pushes to `main` and manual dispatch, runs every exis
 
 ## Verification baseline and limits
 
-All seven commands in the root guide passed during this analysis: data, content, sync, capture, quiz/results, study flows and backup. Build also passed, using all 3,910 cached images with **zero downloads**.
+On **7 October 2026**, all eight release checks passed: data, content, IMT verification, sync, capture, quiz/results, study/exam planning and backup. Build passed with all 3,910 cached images and **zero downloads**. Exam-plan calendar checks also passed with `TZ=Europe/Lisbon` across the October daylight-saving boundary.
 
 Checks use Node's built-in assertions. Backup, quiz-results and study-flow checks execute real `app.js` handlers in VM contexts with DOM/storage fakes; they strip imports and omit startup at its skeleton-render marker. If reorganizing startup or adding required DOM methods, update those harnesses. Sync tests use an in-memory server, and capture tests use a fake canvas.
 
-Passing checks do not establish live Supabase setup/RLS behavior, actual browser downloads/clipboard/popups, physical-device compatibility or correctness of every translated road-rule answer. No new browser or live-cloud test was performed for this documentation task. The local `qa-manual-2026-10-02/` directory contains historical browser evidence and follow-up fixes, but was untracked at analysis time and may not exist in another checkout; consult the latest fix notes before treating an old finding as open.
+Chromium browser checks covered desktop and 375/320 px phones in EN/RU: new-question sets, topic practice, keyboard checking/navigation, cancelled departure, settings focus trapping/restoration, saved targets, preserved mock deadlines, mixed-language mock exclusion, actual 30-question submission, prepared/failed-mock evidence and sample fallback. Final layout checks also covered the dark theme. QA used synthetic profiles on a separate local origin with Supabase disabled and made zero cloud-profile requests; local evidence is in ignored `tmp/exam-prep-2026-10-07/` when present.
+
+Passing checks do not establish live Supabase setup/RLS behavior, actual browser downloads/clipboard/popups, physical-device compatibility or correctness of every translated road-rule answer. The untouched `qa-manual-2026-10-02/` directory contains historical browser evidence and follow-up fixes and may not exist in another checkout; consult the latest fix notes before treating an old finding as open.

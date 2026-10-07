@@ -22,6 +22,7 @@ Read [README.md](README.md) for user-facing behavior and setup. Read [documentat
 | Pure quiz transitions: drafts, checking, navigation and mock deadlines | `quiz-session.js` |
 | Profile validation, normalization and recovery | `profile-data.js` |
 | Local calendar activity, streaks and activity merging | `study-activity.js` |
+| Exam deadline, daily targets, topic balance and preparation evidence | `exam-plan.js`; dashboard/settings in `app.js` |
 | Device identity, private links, conflict resolution and cloud requests | `sync.js`; public connection settings in `supabase-config.js` |
 | Question PNGs, wrapping, image paths and ChatGPT prompt content | `question-capture.js` |
 | UI strings and plural/locale helpers | `i18n.js`; static `data-i18n*` attributes in `index.html` |

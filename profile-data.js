@@ -1,3 +1,5 @@
+import { validExamPlan } from "./exam-plan.js?v=20261007-1";
+
 export const MAX_BACKUP_BYTES = 2 * 1024 * 1024;
 
 export class InvalidStudyProfileError extends Error {
@@ -13,7 +15,7 @@ const optional = (value, key, check) => value[key] === undefined || check(value[
 function validProgress(value) {
   if (!record(value) || !safeKeys(value)) return false;
   if (!["correct", "wrong", "streak", "baseCorrect", "baseWrong"].every((key) => optional(value, key, count))) return false;
-  if (!["lastAnswer", "nextReview"].every((key) => optional(value, key, date))) return false;
+  if (!["lastAnswer", "nextReview", "firstSeenAt"].every((key) => optional(value, key, date))) return false;
   if (value.countsByDevice !== undefined) {
     if (!record(value.countsByDevice) || !safeKeys(value.countsByDevice)) return false;
     if (!Object.values(value.countsByDevice).every((item) => record(item) && safeKeys(item)
@@ -24,12 +26,14 @@ function validProgress(value) {
 
 function validSession(value) {
   return record(value) && safeKeys(value)
-    && ["quick", "review", "mistakes", "exam"].includes(value.mode)
+    && ["quick", "review", "mistakes", "exam", "learn", "repair"].includes(value.mode)
     && count(value.total) && value.total > 0 && count(value.correct) && value.correct <= value.total
     && typeof value.completedAt === "string" && date(value.completedAt)
     && optional(value, "percent", (n) => Number.isFinite(n) && n >= 0 && n <= 100)
     && optional(value, "durationSeconds", count)
     && optional(value, "activityRecorded", (flag) => typeof flag === "boolean")
+    && optional(value, "language", (language) => ["en", "ru", "pt"].includes(language))
+    && optional(value, "languageChanged", (flag) => typeof flag === "boolean")
     && optional(value, "id", (id) => typeof id === "string" && id.length > 0);
 }
 
@@ -47,6 +51,7 @@ const preferences = {
   startedAt: date,
   updatedAt: date,
   resetAt: date,
+  examPlan: validExamPlan,
 };
 
 export function validateStudyProfile(value) {

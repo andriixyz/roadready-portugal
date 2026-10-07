@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>RoadReady — Portugal Category B</title>
     <script src="theme.js?v=20261003-1"></script>
-    <link rel="stylesheet" href="styles.css?v=20261003-2" />
+    <link rel="stylesheet" href="styles.css?v=20261007-1" />
   </head>
   <body>
     <div id="app" class="app-shell">
@@ -73,6 +73,16 @@
         <span class="eyebrow" data-i18n="settings.eyebrow">Local-first cloud sync</span>
         <h2 id="settingsTitle" data-i18n="settings.title">Your study data</h2>
         <p class="muted" data-i18n="settings.description">No account needed. Your answers save automatically. Link your phone and computer once to share the same progress.</p>
+        <form class="exam-plan-settings" id="examPlanForm">
+          <strong data-i18n="plan.settingsTitle">Your exam target</strong>
+          <small data-i18n="plan.settingsHelp">Keep a tentative date until your school confirms the booking. Daily targets adapt to your remaining time.</small>
+          <div class="exam-plan-fields">
+            <label for="examDate"><span data-i18n="plan.dateLabel">Target exam date</span><input id="examDate" type="date" required /></label>
+            <label for="examLanguage"><span data-i18n="plan.languageLabel">Mock exam language</span><select id="examLanguage"><option value="en" data-i18n="plan.language.en">English</option><option value="pt" data-i18n="plan.language.pt">Portuguese</option><option value="ru" data-i18n="plan.language.ru">Russian</option></select></label>
+          </div>
+          <button class="button button-primary" type="submit" data-i18n="plan.save">Update study plan</button>
+          <p class="form-status" id="examPlanStatus" aria-live="polite"></p>
+        </form>
         <div class="language-settings">
           <div><strong data-i18n="language.heading">App language</strong><small data-i18n="language.description">The interface, questions, answers and explanations follow your selected language.</small></div>
           <div class="settings-language-toggle" role="group" aria-label="App language" data-i18n-aria="aria.interfaceLanguage">
@@ -126,6 +136,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="app.js?v=20261003-2"></script>
+    <script type="module" src="app.js?v=20261007-1"></script>
   </body>
 </html>

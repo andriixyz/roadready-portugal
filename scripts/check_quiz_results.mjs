@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import * as quiz from "../quiz-session.js";
+import * as planning from "../exam-plan.js";
 import { localeFor, normalizeLanguage, russianPluralKey, translate } from "../i18n.js";
 import { incrementAnswerCounts } from "../sync.js";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "../profile-data.js";
@@ -26,7 +27,7 @@ function node(selector) {
 }
 const storage = new Map();
 const context = vm.createContext({
-  ...quiz, localeFor, normalizeLanguage, russianPluralKey, translate, incrementAnswerCounts,
+  ...quiz, ...planning, localeFor, normalizeLanguage, russianPluralKey, translate, incrementAnswerCounts,
   MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile,
   recordStudyActivity, answersOnDay, studyStreak,
   prepareVerificationAudit, getQuestionVerification, verificationPdfUrl,

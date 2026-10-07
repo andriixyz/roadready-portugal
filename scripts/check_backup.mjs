@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import * as planning from "../exam-plan.js";
 import { localeFor, normalizeLanguage, russianPluralKey, translate } from "../i18n.js";
 import { isValidSyncKey } from "../sync.js";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "../profile-data.js";
@@ -30,6 +31,7 @@ function harness(initial = good) {
   const storage = new Map([["roadready-profile", typeof initial === "string" ? initial : JSON.stringify(initial)]]);
   const control = { rejectWrite: false, scheduled: 0, connected: 0, failConnect: false };
   const context = vm.createContext({
+    ...planning,
     localeFor, normalizeLanguage, russianPluralKey, translate, isValidSyncKey,
     MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile,
     recordStudyActivity, answersOnDay, studyStreak,
@@ -48,6 +50,7 @@ function harness(initial = good) {
   });
   vm.runInContext(source, context);
   const run = (code) => vm.runInContext(code, context);
+  run('questions = [{id: "bc-1165", topic: "Velocidade", text: {en: "Fixture"}, answers: []}]');
   run(`syncController = {
     schedule() { control.scheduled++; },
     async connect() { control.connected++; if (control.failConnect) throw new Error("Sync unavailable"); },
@@ -79,6 +82,10 @@ for (const damage of [
   (p) => { p.answerActivity = { "2026-10-02": { phone: -1 } }; },
   (p) => { p.answerActivity = { "2026-10-02": null }; },
   (p) => { p.sessions[0].activityRecorded = "yes"; },
+  (p) => { p.examPlan = { startedOn: "2026-10-07", examDate: "2026-02-30", language: "en" }; },
+  (p) => { p.examPlan = { startedOn: "2026-10-07", examDate: "2026-10-27", language: "unknown" }; },
+  (p) => { p.questionProgress["bc-1165"].firstSeenAt = "yesterday"; },
+  (p) => { p.sessions[0].languageChanged = "yes"; },
 ]) {
   const app = harness();
   const originalMemory = app.run("JSON.stringify(profile)");

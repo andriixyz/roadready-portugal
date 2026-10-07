@@ -57,7 +57,7 @@ const runtimeSources = await Promise.all(["app.js", "sync.js", "index.html"].map
   file,
   text: await readFile(new URL(file, root), "utf8"),
 })));
-const keyPattern = /["']((?:aria|nav|chrome|language|settings|dashboard|unit|practice|quiz|result|progress|topic|sources|storage|sync|meta)\.[A-Za-z0-9.-]+)["']/g;
+const keyPattern = /["']((?:aria|nav|chrome|language|settings|dashboard|unit|practice|quiz|result|progress|topic|sources|storage|sync|meta|plan)\.[A-Za-z0-9.-]+)["']/g;
 const pluralKeyBases = new Set(["storage.question", "storage.session", "unit.day", "unit.attempt"]);
 for (const source of runtimeSources) {
   for (const match of source.text.matchAll(keyPattern)) {

@@ -4,6 +4,7 @@ import vm from "node:vm";
 import * as quiz from "../quiz-session.js";
 import * as activity from "../study-activity.js";
 import * as profiles from "../profile-data.js";
+import * as planning from "../exam-plan.js";
 import { localeFor, normalizeLanguage, russianPluralKey, translate } from "../i18n.js";
 import { incrementAnswerCounts, mergeProfiles } from "../sync.js";
 import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "../question-verification.js";
@@ -14,7 +15,7 @@ const source = (await readFile(new URL("../app.js", import.meta.url), "utf8"))
 function harness(saved = null) {
   const nodes = new Map(), listeners = new Map(), storage = new Map();
   if (saved) storage.set("roadready-profile", saved);
-  const control = { allowLeave: false, prompts: [], now: new Date(2026, 9, 2, 12).getTime() };
+  const control = { allowLeave: false, rejectWrite: false, prompts: [], now: new Date(2026, 9, 2, 12).getTime() };
   class ClockDate extends Date {
     constructor(...args) { super(...(args.length ? args : [control.now])); }
     static now() { return control.now; }
@@ -29,7 +30,7 @@ function harness(saved = null) {
   };
   const location = { hash: "#dashboard" };
   const context = vm.createContext({
-    ...quiz, ...activity, ...profiles, localeFor, normalizeLanguage, russianPluralKey, translate, incrementAnswerCounts,
+    ...quiz, ...activity, ...profiles, ...planning, localeFor, normalizeLanguage, russianPluralKey, translate, incrementAnswerCounts,
     prepareVerificationAudit, getQuestionVerification, verificationPdfUrl,
     createQuizSession: (mode, selected, language, now = control.now) => quiz.createQuizSession(mode, selected, language, now),
     answersOnDay: (profile, date = new Date(control.now)) => activity.answersOnDay(profile, date),
@@ -38,7 +39,10 @@ function harness(saved = null) {
     document: { querySelector: node, querySelectorAll: () => [], body: node("body"), documentElement: node("html"), addEventListener() {} },
     window: { addEventListener(type, callback) { listeners.set(type, callback); } },
     location, history: { replaceState(_state, _title, url) { location.hash = url.slice(url.indexOf("#")); } },
-    localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
+    localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => {
+      if (control.rejectWrite) throw new Error("Quota exceeded");
+      storage.set(key, value);
+    } },
     clearInterval() {}, setInterval() {}, setTimeout() {},
     getQuestionChatGPTPrompt: () => "test prompt", getQuestionImagePath: () => "",
     fixtureQuestions: Array.from({ length: 3 }, (_, index) => ({
@@ -82,7 +86,7 @@ for (const mode of ["quick", "exam"]) {
   assert.equal(app.run("session"), null);
   assert.equal(app.run("getStats().todayAnswered"), mode === "quick" ? 1 : 0);
   if (mode === "quick") {
-    assert.ok(app.node("#mainContent").innerHTML.includes("<strong>1/20</strong>"));
+    assert.ok(app.node("#mainContent").innerHTML.includes("1 answers today"));
     const reloaded = harness(app.storage.get("roadready-profile"));
     assert.equal(reloaded.run("getStats().todayAnswered"), 1, "An abandoned practice answer must still count after reload");
   }
@@ -179,7 +183,7 @@ topics.run(`const topicKeys = Object.keys(TOPIC_NAMES); questions = topicKeys.fl
   Array.from({length: index === 0 ? 335 : 2}, (_, n) => ({...fixtureQuestions[0], id: 'topic-' + index + '-' + n, topic})));
   profile.questionProgress = {'topic-0-0': {correct: 0, wrong: 1}};
   location.hash = '#progress'; render();`);
-const topicRows = () => [...topics.node("#mainContent").innerHTML.matchAll(/class="topic-row"><strong>(.*?)<\/strong>/g)].map(match => match[1]);
+const topicRows = () => [...topics.node("#mainContent").innerHTML.matchAll(/class="topic-row"><strong><button[^>]*>(.*?) ↗<\/button><\/strong>/g)].map(match => match[1]);
 assert.equal(topicRows().length, 16, "Show the complete syllabus");
 assert.equal(topicRows().at(-1), topics.run("TOPIC_NAMES[Object.keys(TOPIC_NAMES)[0]].en"), "Tiny nonzero coverage must sort after uncovered topics");
 topics.node("#topicOrder").listeners.change({target: {value: "coverage"}});
@@ -188,4 +192,29 @@ topics.run(`profile.questionProgress = Object.fromEntries(questions.map(q => [q.
   profile.questionProgress['topic-1-0'] = {correct: 0, wrong: 1}; topicOrder = 'weakest'; renderProgress();`);
 assert.equal(topicRows()[0], topics.run("escapeHtml(TOPIC_NAMES[Object.keys(TOPIC_NAMES)[1]].en)"), "Equal coverage breaks ties by answer accuracy");
 
-console.log("Study flow checks passed: leave guards, dated activity, streak gaps/DST/legacy totals, sync/reset, strict review/mistakes, session limits, and all 16 topic rankings.");
+const configured = harness();
+configured.run('session = createQuizSession("exam", questions, "en"); location.hash = "#quiz"; render(); chooseAnswer("A")');
+const activeSession = configured.run("JSON.stringify(session)");
+const originalProfile = configured.run("JSON.stringify(profile)");
+const originalStorage = configured.storage.get("roadready-profile");
+const submitPlan = () => configured.node("#examPlanForm").listeners.submit({ preventDefault() {} });
+configured.node("#examDate").value = "2026-10-25";
+configured.node("#examLanguage").value = "en";
+configured.control.rejectWrite = true;
+submitPlan();
+assert.equal(configured.run("JSON.stringify(profile)"), originalProfile, "Plan quota failures must leave memory intact");
+assert.equal(configured.storage.get("roadready-profile"), originalStorage);
+assert.equal(configured.node("#examPlanStatus").textContent, translate("plan.saveError", "en"));
+configured.control.rejectWrite = false;
+configured.node("#examDate").value = "2026-10-01";
+submitPlan();
+assert.equal(configured.run("JSON.stringify(profile)"), originalProfile, "Past target dates must not be committed");
+configured.node("#examDate").value = "2026-10-25";
+submitPlan();
+assert.equal(configured.run("profile.examPlan.examDate"), "2026-10-25");
+assert.equal(configured.run("JSON.stringify(session)"), activeSession, "Updating the plan must preserve active mock choices and deadline");
+assert.equal(JSON.parse(configured.storage.get("roadready-profile")).examPlan.examDate, "2026-10-25");
+configured.run('setSessionLanguage("pt"); setSessionLanguage("en"); finishSession()');
+assert.equal(configured.run("profile.sessions[0].languageChanged"), true, "Mixed-language mock results must carry their exclusion flag");
+
+console.log("Study flow checks passed: leave guards, dated activity, streak gaps/DST/legacy totals, sync/reset, strict review/mistakes, session limits, all 16 topic rankings, atomic exam settings and preserved active mocks.");

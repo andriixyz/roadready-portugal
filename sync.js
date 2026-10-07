@@ -52,15 +52,18 @@ function mergeQuestionProgress(local, cloud) {
   const localIsNewest = timestamp(local.lastAnswer) >= timestamp(cloud.lastAnswer);
   const recent = localIsNewest ? local : cloud;
   const older = localIsNewest ? cloud : local;
+  const firstSeenAt = [local.firstSeenAt, cloud.firstSeenAt].filter(Boolean)
+    .sort((a, b) => timestamp(a) - timestamp(b))[0];
+  const firstSeen = firstSeenAt ? { firstSeenAt } : {};
   if (!local.countsByDevice && !cloud.countsByDevice) {
-    return { ...older, ...recent, correct: Math.max(count(local.correct), count(cloud.correct)), wrong: Math.max(count(local.wrong), count(cloud.wrong)) };
+    return { ...older, ...recent, ...firstSeen, correct: Math.max(count(local.correct), count(cloud.correct)), wrong: Math.max(count(local.wrong), count(cloud.wrong)) };
   }
   const a = answerCounts(local), b = answerCounts(cloud);
   const devices = Object.fromEntries([...new Set([...Object.keys(a.countsByDevice), ...Object.keys(b.countsByDevice)])].sort().map(id => [id, {
     correct: Math.max(count(a.countsByDevice[id]?.correct), count(b.countsByDevice[id]?.correct)),
     wrong: Math.max(count(a.countsByDevice[id]?.wrong), count(b.countsByDevice[id]?.wrong)),
   }]));
-  return { ...older, ...recent, ...answerCounts({ baseCorrect: Math.max(a.baseCorrect, b.baseCorrect), baseWrong: Math.max(a.baseWrong, b.baseWrong), countsByDevice: devices }) };
+  return { ...older, ...recent, ...firstSeen, ...answerCounts({ baseCorrect: Math.max(a.baseCorrect, b.baseCorrect), baseWrong: Math.max(a.baseWrong, b.baseWrong), countsByDevice: devices }) };
 }
 
 export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
@@ -94,11 +97,12 @@ export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
     dailyGoal: laterValue(local.dailyGoal, cloud.dailyGoal, localUpdatedAt, cloudUpdatedAt) ?? 20,
     language: laterValue(local.language, cloud.language, localUpdatedAt, cloudUpdatedAt) || "en",
     uiLanguage: laterValue(local.uiLanguage, cloud.uiLanguage, localUpdatedAt, cloudUpdatedAt) || local.uiLanguage || cloud.uiLanguage || "en",
+    examPlan: laterValue(local.examPlan, cloud.examPlan, localUpdatedAt, cloudUpdatedAt) || local.examPlan || cloud.examPlan || null,
     streak: Math.max(local.streak || 1, cloud.streak || 1),
     questionProgress,
     sessions: [...sessions.values()].sort((a, b) => timestamp(a.completedAt) - timestamp(b.completedAt)).slice(-100),
     answerActivity: mergeAnswerActivity(local.answerActivity, cloud.answerActivity),
-    ...Object.fromEntries(Object.entries(newest).filter(([key]) => !["startedAt", "updatedAt", "dailyGoal", "language", "uiLanguage", "streak", "questionProgress", "sessions", "answerActivity"].includes(key))),
+    ...Object.fromEntries(Object.entries(newest).filter(([key]) => !["startedAt", "updatedAt", "dailyGoal", "language", "uiLanguage", "examPlan", "streak", "questionProgress", "sessions", "answerActivity"].includes(key))),
   };
 }
 

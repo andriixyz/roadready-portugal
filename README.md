@@ -2,6 +2,18 @@
 
 English- and Russian-language study app for the Portuguese IMT Category B theory exam, with the Portuguese source wording available for every question.
 
+## Prepare for an exam in 20 days
+
+The dashboard starts with an **English preparation target of 27 October 2026**, twenty days after 7 October. This is a tentative study date, not a booking. Change the date and mock language under **Your profile → Your exam target**; the saved target syncs to linked devices and is included in backups.
+
+Start with the recommended diagnostic mock, then finish the dashboard's daily targets. The plan reserves the final four days for rehearsal and a lighter last day. A fresh 3,910-question profile needs about **245 new questions per day for the first 16 days**, plus recall, mistake repair and one daily mock. Expect several hours, depending on your mistakes and reading speed; the displayed remaining-time estimate is approximate. Missed days increase the remaining daily pace. During rehearsal, take two mocks a day and review every error.
+
+**New questions** uses sets of up to 20, rotating through the least-covered topics. **Repair latest mistakes** includes a question whose latest answer was wrong even when its lifetime accuracy is high; one correct answer removes it from that queue. Due review retains its strict due-only selection, with difficult and overdue questions first. Topic links start targeted practice. Checked answers from unfinished sets still count, and submitted mocks contribute to new-question and recall totals.
+
+Preparation is shown as four explicit study goals: encounter the whole bank; attempt at least 20 questions in each topic (all questions in smaller topics) with at least 90% correct latest answers; correct every latest mistake; and achieve **five full timed mocks at 28/30 or better within the last seven local calendar days, spanning at least three days**. These are preparation goals, not a guarantee of passing. Mocks need a recorded matching language, unchanged during the test, and a duration no longer than 30 minutes. Older mocks without language metadata remain in your history but do not establish language-specific readiness. Sample questions cannot satisfy these goals.
+
+The [IMT Category B format](https://imt.madeira.gov.pt/index.php/pt/transportes-terrestres/condutores/provas-teoricas) is **30 questions in 30 minutes, passing at 27 correct**; 28/30 is the app's preparation margin. Confirm your actual date, centre, time, English exam or interpreter arrangements and required documents with your driving school.
+
 ## Run locally
 
 ```bash
