@@ -17,7 +17,7 @@ Appearance is a per-browser preference stored separately from study data. It is 
 Startup in `app.js`:
 
 1. Load/generate the browser device ID and validate the saved local profile; salvage valid records if damaged.
-2. Apply UI translations and fetch `questions-en.json`. If loading fails, try the Portuguese corpus, then six built-in sample questions. A saved Russian preference also loads the Russian overlay.
+2. Apply UI translations and fetch `questions-en.json`. If loading fails, try the Portuguese corpus, then six built-in sample questions. A saved Russian preference also loads the Russian overlay. Overlay failure retains the available base bank and saved preferences/progress, with an EN/RU notice on study pages. New sets requesting unavailable Russian use the available English or Portuguese wording; explicit mid-session Russian switches still fail without changing the checked question. Selecting Russian again retries the overlay and clears the notice after success.
 3. Render the selected view and install interface-language handlers.
 4. Create the sync controller, consume any private-link fragment and initialize cloud sync asynchronously.
 
@@ -113,7 +113,7 @@ The snapshot contains **3,910 questions across 16 topics**, **18,931 Russian fie
 | `questions-en.json` | Runtime base: preserves PT and adds EN text/options, feedback and review metadata |
 | `questions-ru.json` | Compact object keyed by question ID, containing RU text, keyed answers and feedback; metadata binds it to the exact EN file bytes |
 
-All paths above are under `public/data/`. The runtime attaches Russian fields by ID/answer key when needed. It checks overlay count/IDs; the offline data check verifies completeness, answer keys and the SHA-256 source hash. UI translations are separate dictionaries in `i18n.js`, with English fallback, placeholder interpolation and Russian plural helpers.
+All paths above are under `public/data/`. The runtime attaches Russian fields by ID/answer key when needed. It validates all overlay count/IDs, text/explanation fields and unique answer keys before mutating any question, preserving base question/choice order. The offline data check additionally verifies completeness metadata and the SHA-256 source hash. UI translations are separate dictionaries in `i18n.js`, with English fallback, placeholder interpolation and Russian plural helpers.
 
 The study key comes from Bom Condutor. The app separately links 14 IMT PDF groups; it does not treat those links as an official solution key. **Only `bc-1165` has a reviewed detailed explanation in this snapshot.** All other feedback explicitly says detailed reasoning has not been reviewed. `scripts/reviewed-content.mjs` matches corrections against preserved Portuguese phrases; reviewed reasoning additionally matches the exact question/options/key and carries a source URL.
 

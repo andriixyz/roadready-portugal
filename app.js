@@ -1,5 +1,5 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261007-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261008-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261008-2";
 import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261007-3";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261007-1";
@@ -180,6 +180,10 @@ function applyStaticTranslations() {
 }
 
 let russianCorpusPromise = null;
+let russianCorpusUnavailable = false;
+function russianCorpusNotice() {
+  return russianCorpusUnavailable ? `<p class="notice" role="status">${t("quiz.russianUnavailable")}</p>` : "";
+}
 async function ensureRussianCorpus() {
   if (questions.length && questions.every((question) => question.text?.ru && question.explanation?.ru && question.answers.every((answer) => answer.ru))) return true;
   if (corpusMeta.sample && questions.every((question) => question.text?.ru && question.answers.every((answer) => answer.ru))) return true;
@@ -192,39 +196,59 @@ async function ensureRussianCorpus() {
       : Object.entries(data.questions || {});
     if (overlayEntries.length !== questions.length) throw new Error("Russian corpus does not match the base corpus.");
     const overlays = new Map(overlayEntries);
-    questions.forEach((question) => {
+    // Validate the entire overlay before attaching any translated fields.
+    const translations = questions.map((question) => {
       const overlay = overlays.get(question.id);
-      if (!overlay) throw new Error(`Missing Russian translation for ${question.id}`);
+      const hasText = (value) => typeof value === "string" && Boolean(value.trim());
+      if (!hasText(overlay?.text?.ru) || !hasText(overlay?.explanation?.ru)
+        || !Array.isArray(overlay.answers) || overlay.answers.length !== question.answers.length) {
+        throw new Error(`Incomplete Russian translation for ${question.id}`);
+      }
+      const answers = new Map(overlay.answers.map((answer) => [answer.key, answer.ru]));
+      if (answers.size !== question.answers.length || !question.answers.every((answer) => hasText(answers.get(answer.key)))) {
+        throw new Error(`Russian answer keys do not match ${question.id}`);
+      }
+      return { question, overlay, answers };
+    });
+    translations.forEach(({ question, overlay, answers }) => {
       question.text.ru = overlay.text.ru;
       question.explanation = { ...(question.explanation || {}), ru: overlay.explanation.ru };
-      const answers = new Map(overlay.answers.map((answer) => [answer.key, answer.ru]));
       question.answers.forEach((answer) => { answer.ru = answers.get(answer.key); });
     });
+    russianCorpusUnavailable = false;
     return true;
   })().catch((error) => {
     russianCorpusPromise = null;
+    russianCorpusUnavailable = true;
     throw error;
   });
   return russianCorpusPromise;
 }
 
 async function loadCorpus() {
+  questions = [];
   for (const url of ["public/data/questions-en.json?v=20261002-1", "public/data/questions-pt.json?v=20260731-1"]) {
     try {
       const response = await fetch(url);
       if (!response.ok) continue;
       const data = await response.json();
+      if (!Array.isArray(data.questions) || !data.questions.length) continue;
       questions = data.questions;
       corpusMeta = data;
-      if (questions.length) {
-        if (profile.uiLanguage === "ru" || profile.language === "ru") await ensureRussianCorpus();
-        await loadVerificationAudit();
-        return;
-      }
+      break;
     } catch { /* try fallback */ }
   }
-  questions = sampleQuestions;
-  corpusMeta = { count: sampleQuestions.length, generatedAt: new Date().toISOString(), sample: true };
+  if (!questions.length) {
+    questions = sampleQuestions;
+    corpusMeta = { count: sampleQuestions.length, generatedAt: new Date().toISOString(), sample: true };
+    russianCorpusUnavailable = false;
+    return;
+  }
+  if (profile.uiLanguage === "ru" || profile.language === "ru") {
+    try { await ensureRussianCorpus(); }
+    catch { /* The optional translation must not replace an available bank. */ }
+  }
+  await loadVerificationAudit();
 }
 
 async function loadVerificationAudit() {
@@ -330,6 +354,7 @@ function renderDashboard() {
   const greeting = hour < 12 ? t("dashboard.morning") : hour < 18 ? t("dashboard.afternoon") : t("dashboard.evening");
   main.innerHTML = `
     <div class="page">
+      ${russianCorpusNotice()}
       <header class="page-header">
         <div><span class="eyebrow">${t("dashboard.category")}</span><h1>${greeting}</h1><p>${t("plan.subtitle", { language: planLanguage(plan) })}</p></div>
         <button class="date-chip plan-edit" data-edit-plan>${t("plan.targetDate", { date: planDate(plan.config.examDate) })} ✎</button>
@@ -385,6 +410,7 @@ function renderPractice() {
   const plan = studyPlan();
   main.innerHTML = `
     <div class="page">
+      ${russianCorpusNotice()}
       <header class="page-header"><div><span class="eyebrow">${t("practice.eyebrow")}</span><h1>${t("practice.title")}</h1><p>${t("practice.subtitle")}</p></div><span class="date-chip">${t("practice.loaded", { questions: formatQuestionCount(questions.length) })}</span></header>
       <a class="speed-preview" href="#speed-limits"><span class="speed-preview-numbers" aria-hidden="true">50 <i>90</i> 100 <i>120</i></span><div><strong>${t("speed.previewTitle")}</strong><p>${t("speed.previewHelp")}</p></div><span class="text-link">${t("speed.previewOpen")} →</span></a>
       <section class="mode-grid">
@@ -450,10 +476,14 @@ async function startSession(mode, topic) {
   if (!Object.hasOwn(SESSION_LIMITS, mode)) return;
   const selected = selectForMode(mode, topic);
   if (!selected.length) { showToast(t(mode === "review" ? "practice.nothingDue" : mode === "mistakes" || mode === "repair" ? "practice.noMistakes" : mode === "learn" ? "plan.noNew" : "practice.answerFirst")); return; }
-  const language = ["exam", "learn", "repair", "review"].includes(mode) || topic ? studyPlan().config.language : profile.language;
+  let language = ["exam", "learn", "repair", "review"].includes(mode) || topic ? studyPlan().config.language : profile.language;
   if (language === "ru") {
     try { await ensureRussianCorpus(); }
-    catch { showToast(t("quiz.russianLoadError")); return; }
+    catch {
+      // Keep studying from the available base without changing the saved choice.
+      language = selected.every(question => question.text.en && question.answers.every(answer => answer.en)) ? "en" : "pt";
+      showToast(t("quiz.russianLoadError"));
+    }
   }
   session = createQuizSession(mode, selected, language);
   session.topic = topic;
@@ -523,6 +553,7 @@ function renderQuestion() {
   const image = q.image ? `<a class="question-image-link" href="${escapeHtml(q.image)}" target="_blank" rel="noopener" aria-label="${escapeHtml(t("quiz.openImage", { id: q.sourceId }))}"><img src="${escapeHtml(getQuestionImagePath(q))}" alt="${escapeHtml(t("quiz.imageAlt", { id: q.sourceId }))}" referrerpolicy="no-referrer" /></a>` : `<div class="image-fallback"><strong>${t("quiz.textOnly")}</strong><br><br>${t("quiz.imageNotRequired")}</div>`;
   main.innerHTML = `
     <div class="page question-page">
+      ${russianCorpusNotice()}
       <div class="quiz-topbar"><button class="icon-button" id="exitQuiz" aria-label="${t("quiz.exit")}">×</button><div class="quiz-progress" style="--value:${progress}%"><span></span></div><span class="quiz-counter">${session.mode === "exam" ? `<b id="timer" title="${t("quiz.elapsedTime")}">${formatTime(session.elapsedSeconds)}</b> · ` : ""}${t("quiz.counter", { current: formatNumber(session.index + 1), total: formatNumber(session.questions.length) })}</span></div>
       <nav class="quiz-navigation" aria-label="${t("quiz.navigation")}">
         <div class="quiz-navigation-controls"><button class="button button-secondary" id="quizPrevious" ${session.index === 0 ? "disabled" : ""}>← ${t("quiz.previous")}</button><span class="quiz-navigation-status" role="status">${t("quiz.answeredCount", { count: formatNumber(session.answers.filter(Boolean).length), total: formatNumber(session.questions.length) })}</span><button class="button button-secondary" id="quizNext" ${isLast ? "disabled" : ""}>${t("quiz.next")} →</button></div>
@@ -762,7 +793,7 @@ function renderResult(finished, result) {
     ? passed ? t("result.examPassed") : t("result.examFailed", { count: formatNumber(errors) })
     : t("result.practiceHelp");
   const next = nextPlanMode();
-  main.innerHTML = `<div class="page"><article class="card result-card"><span class="eyebrow">${finished.mode === "exam" ? t("result.mockComplete") : t("result.practiceComplete")}</span><div class="result-orb">${formatNumber(result.correct)}/${formatNumber(result.total)}</div><h1>${passed ? t("result.strong") : t("result.useful")}</h1><p>${summary}</p><div class="result-stats"><div><strong>${result.percent}%</strong><span>${t("result.accuracy")}</span></div><div><strong>${formatNumber(errors)}</strong><span>${errorLabel}</span></div><div><strong>${formatMinuteCount(Math.ceil(result.durationSeconds / 60))}</strong><span>${t("result.time")}</span></div></div><div class="result-actions"><button class="button button-secondary" id="resultHome">${t("result.dashboard")}</button><button class="button button-primary" id="resultAgain">${t("result.again")}</button>${next ? `<button class="button button-accent" data-start="${next}">${t(`plan.start.${next}`)} →</button>` : ""}</div></article>${review}</div>`;
+  main.innerHTML = `<div class="page">${russianCorpusNotice()}<article class="card result-card"><span class="eyebrow">${finished.mode === "exam" ? t("result.mockComplete") : t("result.practiceComplete")}</span><div class="result-orb">${formatNumber(result.correct)}/${formatNumber(result.total)}</div><h1>${passed ? t("result.strong") : t("result.useful")}</h1><p>${summary}</p><div class="result-stats"><div><strong>${result.percent}%</strong><span>${t("result.accuracy")}</span></div><div><strong>${formatNumber(errors)}</strong><span>${errorLabel}</span></div><div><strong>${formatMinuteCount(Math.ceil(result.durationSeconds / 60))}</strong><span>${t("result.time")}</span></div></div><div class="result-actions"><button class="button button-secondary" id="resultHome">${t("result.dashboard")}</button><button class="button button-primary" id="resultAgain">${t("result.again")}</button>${next ? `<button class="button button-accent" data-start="${next}">${t(`plan.start.${next}`)} →</button>` : ""}</div></article>${review}</div>`;
   $("#resultHome").addEventListener("click", () => { session = null; location.hash = "dashboard"; });
   $("#resultAgain").addEventListener("click", () => startSession(finished.mode, finished.topic));
   bindStartButtons();
@@ -812,7 +843,7 @@ function renderProgress() {
     return { topic: pt, name: names[profile.uiLanguage] || names.en, seen, total: topicQuestions.length, coverage, percent: Math.round(coverage * 100), attempts: correct + wrong, accuracy: correct + wrong ? Math.round(correct / (correct + wrong) * 100) : 0 };
   }).sort((a, b) => (topicOrder === "coverage" ? b.coverage - a.coverage : a.coverage - b.coverage || a.accuracy - b.accuracy)
     || a.name.localeCompare(b.name, currentLocale()));
-  main.innerHTML = `<div class="page"><header class="page-header"><div><span class="eyebrow">${t("progress.eyebrow")}</span><h1>${t("progress.title")}</h1><p>${t("progress.subtitle")}</p></div><span class="date-chip">${t("progress.seen", { questions: formatQuestionCount(s.seen) })}</span></header><section class="stat-grid"><article class="card stat-card"><span>${t("plan.studyTargets")}</span><strong>${plan.readiness.met}/4</strong><small>${t(plan.readiness.ready ? "plan.targetsMet" : "plan.targetsPending")}</small></article><article class="card stat-card"><span>${t("progress.coverage")}</span><strong>${Math.round(s.coverage)}%</strong><small>${formatNumber(s.seen)}/${formatNumber(questions.length)}</small></article><article class="card stat-card"><span>${t("progress.accuracy")}</span><strong>${s.accuracy}%</strong><small>${t("progress.target90")}</small></article><article class="card stat-card"><span>${t("progress.mockAverage")}</span><strong>${s.mock}%</strong><small>${t("plan.recentMocks", { language: planLanguage(plan) })}</small></article></section>${readinessMarkup(plan)}<div class="section-heading"><h2>${t("progress.activity")}</h2></div><section class="progress-layout"><article class="card chart-card"><h3>${t("progress.answered")}</h3><p>${t("progress.lastSeven")}</p><div class="bar-chart">${last7.map((day, i) => `<div class="bar ${i === 6 ? "active" : ""}" style="--height:${Math.max(3, (day.count / max) * 100)}%" role="img" aria-label="${escapeHtml(day.label)}: ${formatQuestionCount(day.count)}"><span>${day.label}</span></div>`).join("")}</div></article><article class="card coverage-card"><h3>${t("progress.syllabus")}</h3><p>${t(topicOrder === "coverage" ? "progress.topicsCoveredFirst" : "progress.topicsFirst")}</p><label class="topic-sort" for="topicOrder">${t("progress.topicOrder")}<select id="topicOrder"><option value="weakest" ${topicOrder === "weakest" ? "selected" : ""}>${t("progress.weakestFirst")}</option><option value="coverage" ${topicOrder === "coverage" ? "selected" : ""}>${t("progress.coveredFirst")}</option></select></label><div class="topic-list">${topicStats.map((topic) => `<div class="topic-row"><strong><button class="topic-practice" data-topic="${escapeHtml(topic.topic)}">${escapeHtml(topic.name)} ↗</button></strong><span>${formatNumber(topic.seen)}/${formatNumber(topic.total)}</span><small>${topic.attempts ? t("progress.topicAccuracy", { percent: formatNumber(topic.accuracy) }) : t("progress.notPracticed")}</small><div class="meter" style="--value:${topic.percent}%"><span></span></div></div>`).join("")}</div></article></section></div>`;
+  main.innerHTML = `<div class="page">${russianCorpusNotice()}<header class="page-header"><div><span class="eyebrow">${t("progress.eyebrow")}</span><h1>${t("progress.title")}</h1><p>${t("progress.subtitle")}</p></div><span class="date-chip">${t("progress.seen", { questions: formatQuestionCount(s.seen) })}</span></header><section class="stat-grid"><article class="card stat-card"><span>${t("plan.studyTargets")}</span><strong>${plan.readiness.met}/4</strong><small>${t(plan.readiness.ready ? "plan.targetsMet" : "plan.targetsPending")}</small></article><article class="card stat-card"><span>${t("progress.coverage")}</span><strong>${Math.round(s.coverage)}%</strong><small>${formatNumber(s.seen)}/${formatNumber(questions.length)}</small></article><article class="card stat-card"><span>${t("progress.accuracy")}</span><strong>${s.accuracy}%</strong><small>${t("progress.target90")}</small></article><article class="card stat-card"><span>${t("progress.mockAverage")}</span><strong>${s.mock}%</strong><small>${t("plan.recentMocks", { language: planLanguage(plan) })}</small></article></section>${readinessMarkup(plan)}<div class="section-heading"><h2>${t("progress.activity")}</h2></div><section class="progress-layout"><article class="card chart-card"><h3>${t("progress.answered")}</h3><p>${t("progress.lastSeven")}</p><div class="bar-chart">${last7.map((day, i) => `<div class="bar ${i === 6 ? "active" : ""}" style="--height:${Math.max(3, (day.count / max) * 100)}%" role="img" aria-label="${escapeHtml(day.label)}: ${formatQuestionCount(day.count)}"><span>${day.label}</span></div>`).join("")}</div></article><article class="card coverage-card"><h3>${t("progress.syllabus")}</h3><p>${t(topicOrder === "coverage" ? "progress.topicsCoveredFirst" : "progress.topicsFirst")}</p><label class="topic-sort" for="topicOrder">${t("progress.topicOrder")}<select id="topicOrder"><option value="weakest" ${topicOrder === "weakest" ? "selected" : ""}>${t("progress.weakestFirst")}</option><option value="coverage" ${topicOrder === "coverage" ? "selected" : ""}>${t("progress.coveredFirst")}</option></select></label><div class="topic-list">${topicStats.map((topic) => `<div class="topic-row"><strong><button class="topic-practice" data-topic="${escapeHtml(topic.topic)}">${escapeHtml(topic.name)} ↗</button></strong><span>${formatNumber(topic.seen)}/${formatNumber(topic.total)}</span><small>${topic.attempts ? t("progress.topicAccuracy", { percent: formatNumber(topic.accuracy) }) : t("progress.notPracticed")}</small><div class="meter" style="--value:${topic.percent}%"><span></span></div></div>`).join("")}</div></article></section></div>`;
   bindStartButtons();
   $("#topicOrder").addEventListener("change", (event) => {
     topicOrder = event.target.value;
@@ -828,7 +859,7 @@ function renderSources() {
   const comparison = summary ? `<section class="card verification-report" aria-labelledby="verificationReportTitle"><h2 id="verificationReportTitle">${t("verification.reportTitle")}</h2><p>${t("verification.reportScope")}</p><div class="verification-totals">${[
     ["matched", summary.matched], ["text-only", summary.textOnly], ["differences", summary.differences], ["not-found", summary.notFound],
   ].map(([status, count]) => `<div><strong>${formatNumber(count)}</strong><span>${t(`verification.${status}.label`)}</span></div>`).join("")}</div><p>${t("verification.pdfTotals", { entries: formatNumber(summary.pdfEntries), unmatched: formatNumber(summary.pdfEntriesWithoutMatch) })}</p><p>${t("verification.categoryScope")}</p><p>${t("verification.answerScope")}</p><div class="verification-downloads"><a class="text-link" href="documentation/data/imt-app-comparison.csv" download>${t("verification.downloadApp")}</a><a class="text-link" href="documentation/data/imt-pdf-comparison.csv" download>${t("verification.downloadPdf")}</a></div></section>` : `<div class="notice">${t("verification.unavailable.description")}</div>`;
-  main.innerHTML = `<div class="page"><header class="page-header"><div><span class="eyebrow">${t("sources.eyebrow")}</span><h1>${t("sources.title")}</h1><p>${t("sources.subtitle")}</p></div><span class="date-chip">${date ? t("sources.updated", { date }) : t("verification.unavailable.label")}</span></header>${comparison}<div class="notice"><strong>${t("sources.keyTitle")}</strong> ${t("sources.keyNotice")}<br><strong>${t("sources.translationTitle")}</strong> ${t("sources.translationNotice")}</div><div class="section-heading"><div><h2>${t("sources.groups")}</h2><p>${t("sources.groupsDescription")}</p></div><a class="text-link" href="https://www.imt-ip.pt/condutores/obtencao/perguntas-de-exame/" target="_blank" rel="noopener">${t("sources.openIndex")}</a></div><section class="source-grid">${Array.from({ length: 14 }, (_, i) => `<a class="card source-card" href="${escapeHtml(verificationAudit?.sources.get(i + 1)?.url || `${base}/rel_${i + 1}_condutores.pdf`)}" target="_blank" rel="noopener"><span class="pdf-icon">PDF</span><span><strong>${t("sources.group", { number: formatNumber(i + 1) })}</strong><span>${t("sources.original")}</span></span></a>`).join("")}</section><div class="section-heading"><div><h2>${t("sources.dataNotes")}</h2><p>${t("sources.dataDescription")}</p></div></div><section class="stat-grid"><article class="card stat-card"><span>${t("sources.bank")}</span><strong>${formatNumber(questions.length)}</strong><small>${t("sources.publicQuestions")}</small></article><article class="card stat-card"><span>${t("sources.topics")}</span><strong>${formatNumber(new Set(questions.map((q) => q.topic)).size)}</strong><small>${t("sources.syllabusAreas")}</small></article><article class="card stat-card"><span>${t("sources.languages")}</span><strong>${t("sources.languageValue")}</strong><small>${t("sources.toggleHelp")}</small></article><article class="card stat-card"><span>${t("sources.lastImport")}</span><strong>${corpusMeta.generatedAt ? new Date(corpusMeta.generatedAt).toLocaleDateString(currentLocale()) : "—"}</strong><small>${t("sources.localCorpus")}</small></article></section></div>`;
+  main.innerHTML = `<div class="page">${russianCorpusNotice()}<header class="page-header"><div><span class="eyebrow">${t("sources.eyebrow")}</span><h1>${t("sources.title")}</h1><p>${t("sources.subtitle")}</p></div><span class="date-chip">${date ? t("sources.updated", { date }) : t("verification.unavailable.label")}</span></header>${comparison}<div class="notice"><strong>${t("sources.keyTitle")}</strong> ${t("sources.keyNotice")}<br><strong>${t("sources.translationTitle")}</strong> ${t("sources.translationNotice")}</div><div class="section-heading"><div><h2>${t("sources.groups")}</h2><p>${t("sources.groupsDescription")}</p></div><a class="text-link" href="https://www.imt-ip.pt/condutores/obtencao/perguntas-de-exame/" target="_blank" rel="noopener">${t("sources.openIndex")}</a></div><section class="source-grid">${Array.from({ length: 14 }, (_, i) => `<a class="card source-card" href="${escapeHtml(verificationAudit?.sources.get(i + 1)?.url || `${base}/rel_${i + 1}_condutores.pdf`)}" target="_blank" rel="noopener"><span class="pdf-icon">PDF</span><span><strong>${t("sources.group", { number: formatNumber(i + 1) })}</strong><span>${t("sources.original")}</span></span></a>`).join("")}</section><div class="section-heading"><div><h2>${t("sources.dataNotes")}</h2><p>${t("sources.dataDescription")}</p></div></div><section class="stat-grid"><article class="card stat-card"><span>${t("sources.bank")}</span><strong>${formatNumber(questions.length)}</strong><small>${t("sources.publicQuestions")}</small></article><article class="card stat-card"><span>${t("sources.topics")}</span><strong>${formatNumber(new Set(questions.map((q) => q.topic)).size)}</strong><small>${t("sources.syllabusAreas")}</small></article><article class="card stat-card"><span>${t("sources.languages")}</span><strong>${t("sources.languageValue")}</strong><small>${t("sources.toggleHelp")}</small></article><article class="card stat-card"><span>${t("sources.lastImport")}</span><strong>${corpusMeta.generatedAt ? new Date(corpusMeta.generatedAt).toLocaleDateString(currentLocale()) : "—"}</strong><small>${t("sources.localCorpus")}</small></article></section></div>`;
 }
 
 function showToast(message) { const toast = $("#toast"); toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2600); }

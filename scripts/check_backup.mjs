@@ -45,7 +45,10 @@ function harness(initial = good) {
     },
     clearInterval() {}, setTimeout() {},
     navigator: {},
-    fetch: async () => { throw new Error("Translation unavailable"); },
+    fetch: async (...args) => {
+      if (control.fetch) return control.fetch(...args);
+      throw new Error("Translation unavailable");
+    },
     control,
   });
   vm.runInContext(source, context);
@@ -156,4 +159,85 @@ assert.equal(recovered.node("#settingsModal").hidden, false);
 assert.equal(recovered.storage.get("roadready-profile-recovery"), JSON.stringify(damaged));
 assert.equal(recovered.run('JSON.stringify(profile.answerActivity)'), JSON.stringify({ "2026-10-02": { phone: 2 } }));
 assert.equal(harness("{broken").run("getStats().seen"), 0);
-console.log("Backup checks passed: atomic rejection, nested validation, quota/loading failures, legacy restore, reload and startup recovery.");
+
+// Startup must retain an available bank when the optional overlay is offline.
+const english = JSON.parse(await readFile(new URL("../public/data/questions-en.json", import.meta.url), "utf8"));
+const portuguese = JSON.parse(await readFile(new URL("../public/data/questions-pt.json", import.meta.url), "utf8"));
+const russian = JSON.parse(await readFile(new URL("../public/data/questions-ru.json", import.meta.url), "utf8"));
+const response = (payload) => ({ ok: true, json: async () => copy(payload) });
+const unavailable = { ok: false, status: 503 };
+for (const baseLanguage of ["en", "pt"]) {
+  for (const preferences of [{ uiLanguage: "ru", language: "en" }, { uiLanguage: "en", language: "ru" }]) {
+    const saved = { ...copy(good), ...preferences, questionProgress: {
+      [english.questions[0].id]: { correct: 3, wrong: 1 },
+      [english.questions[1].id]: { correct: 1, wrong: 1 },
+    } };
+    const app = harness(saved);
+    const memory = app.run("JSON.stringify(profile)");
+    const storage = app.storage.get("roadready-profile");
+    const requests = [];
+    let offline = true;
+    app.control.fetch = async (url) => {
+      requests.push(url);
+      if (url.includes("questions-en")) return baseLanguage === "en" ? response(english) : unavailable;
+      if (url.includes("questions-pt")) return response(portuguese);
+      if (url.includes("questions-ru")) return offline ? unavailable : response(russian);
+      return unavailable;
+    };
+    await app.run("loadCorpus()");
+    assert.equal(app.run("questions.length"), 3910);
+    assert.ok(!app.run("corpusMeta.sample"));
+    assert.equal(app.run("getStats().seen"), 2);
+    assert.equal(app.run("getStats().correct + getStats().wrong"), 6);
+    assert.equal(requests.filter(url => url.includes("questions-ru")).length, 1);
+    assert.equal(requests.some(url => url.includes("questions-pt")), baseLanguage === "pt");
+    assert.ok(requests.some(url => url.includes("imt-verification")), "A translation failure must not skip the source audit");
+    app.run("renderPractice()");
+    assert.ok(app.node("#mainContent").innerHTML.includes(translate("quiz.russianUnavailable", preferences.uiLanguage)));
+    assert.equal(app.run("JSON.stringify(profile)"), memory);
+    assert.equal(app.storage.get("roadready-profile"), storage);
+    await assert.rejects(app.run("ensureRussianCorpus()"));
+    offline = false;
+    await app.run("ensureRussianCorpus();");
+    assert.equal(app.run("russianCorpusUnavailable"), false);
+    assert.equal(app.run("questions.every(q => q.text.ru && q.explanation.ru && q.answers.every(a => a.ru))"), true);
+    assert.equal(app.run("JSON.stringify(profile)"), memory, "Retry must not reset progress or language preferences");
+    assert.equal(app.storage.get("roadready-profile"), storage);
+    app.run("renderPractice()");
+    assert.ok(!app.node("#mainContent").innerHTML.includes(translate("quiz.russianUnavailable", preferences.uiLanguage)));
+  }
+}
+
+for (const damage of [
+  overlay => { delete overlay.questions[english.questions.at(-1).id]; },
+  overlay => { overlay.questions[english.questions.at(-1).id].text.ru = ""; },
+  overlay => { overlay.questions[english.questions.at(-1).id].answers[0].key = "unknown"; },
+  overlay => { const answers = overlay.questions[english.questions.at(-1).id].answers; answers[1].key = answers[0].key; },
+]) {
+  const app = harness();
+  app.run("questions = []");
+  let overlay = copy(russian);
+  damage(overlay);
+  app.control.fetch = async url => url.includes("questions-en") ? response(english) : url.includes("questions-ru") ? response(overlay) : unavailable;
+  await app.run("loadCorpus()");
+  const base = app.run("JSON.stringify(questions)");
+  await assert.rejects(app.run("ensureRussianCorpus()"));
+  assert.equal(app.run("JSON.stringify(questions)"), base, "Rejected overlays must not partially translate the bank");
+  assert.equal(app.run("questions.some(q => q.text.ru)"), false);
+  overlay = copy(russian);
+  // Overlay ordering is independent; retain base question and choice order.
+  overlay.questions = Object.fromEntries(Object.entries(overlay.questions).reverse());
+  Object.values(overlay.questions).forEach(question => question.answers.reverse());
+  await app.run("ensureRussianCorpus()");
+  assert.equal(app.run("JSON.stringify(questions.map(q => [q.id, q.answers.map(a => a.key)]))"),
+    JSON.stringify(english.questions.map(q => [q.id, q.answers.map(a => a.key)])));
+}
+
+const samples = harness({ ...copy(good), uiLanguage: "ru", language: "ru" });
+samples.control.fetch = async () => unavailable;
+await samples.run("loadCorpus()");
+assert.equal(samples.run("questions.length"), 6);
+assert.equal(samples.run("corpusMeta.sample"), true);
+samples.run("renderDashboard()");
+assert.ok(samples.node("#mainContent").innerHTML.includes(translate("plan.sample", "ru")));
+console.log("Backup/startup checks passed: atomic rejection, recovery, optional Russian failure with either base bank, progress preservation, retry, overlay integrity/order and labelled samples.");

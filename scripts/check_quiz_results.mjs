@@ -43,6 +43,7 @@ const context = vm.createContext({
     setItem: (key, value) => storage.set(key, value),
   },
   clearInterval() {}, setInterval() {}, setTimeout() {},
+  navigator: {},
   getQuestionChatGPTPrompt: () => "test prompt", getQuestionImagePath: () => "",
   fixtureQuestions: Array.from({ length: 3 }, (_, index) => ({
     id: `test-${index}`, sourceId: index + 1, text: { en: `Question ${index + 1}` },
@@ -129,4 +130,30 @@ assert.ok(main.innerHTML.includes(translate(`verification.${actualProof.status}.
 assert.ok(!main.innerHTML.includes("Обоснование ответа проверено"));
 run("chooseAnswer('B')");
 assert.ok(main.innerHTML.includes("Обоснование ответа проверено"));
+
+// Failed Russian switches preserve a checked English question and its timer.
+context.fetch = async () => { throw new Error("Translation unavailable"); };
+run("profile = defaultProfile(); questions = fixtureQuestions; session = createQuizSession('exam', questions, 'en'); renderQuestion(); chooseAnswer('B')");
+const checkedSession = run("JSON.stringify(session)");
+const checkedProfile = run("JSON.stringify(profile)");
+const checkedMarkup = main.innerHTML;
+await run("setQuestionLanguage('ru')");
+assert.equal(run("JSON.stringify(session)"), checkedSession);
+assert.equal(run("JSON.stringify(profile)"), checkedProfile);
+assert.equal(main.innerHTML, checkedMarkup, "A failed switch must retain wording, picks and feedback");
+await run("setUILanguage('ru')");
+assert.equal(run("JSON.stringify(session)"), checkedSession);
+assert.equal(run("profile.language"), "en");
+assert.ok(main.innerHTML.includes('class="feedback incorrect"'));
+
+for (const language of ["en", "pt"]) {
+  run(`profile = defaultProfile(); profile.language = 'ru'; session = null;
+    questions = fixtureQuestions.map(question => ({ ...question,
+      text: { ${language}: question.text.en },
+      answers: question.answers.map(answer => ({ key: answer.key, ${language}: answer.en })) }));`);
+  await run("startSession('quick')");
+  assert.equal(run("session.questionLanguage"), language, "An unavailable Russian overlay must allow studying from the base bank");
+  assert.equal(run("profile.language"), "ru", "A fallback session must retain the saved Russian preference");
+  assert.ok(main.innerHTML.includes(translate("quiz.russianUnavailable", "en")));
+}
 console.log("Quiz results checks passed: immediate feedback without navigation/submission, preserved first attempts, late renders/language/sync, single recording, review details and PDF verification.");

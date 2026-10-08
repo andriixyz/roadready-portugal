@@ -605,6 +605,7 @@ const EN = {
   "quiz.correctAnswer": "Correct answer: “{answer}”",
   "quiz.russianLoading": "Loading Russian translations…",
   "quiz.russianLoadError": "Russian translations could not be loaded. Try again when you are online.",
+  "quiz.russianUnavailable": "Russian translations are unavailable. You can continue with English or Portuguese questions without losing progress. Select Russian again to retry.",
   "result.review": "Review the missed rules",
   "result.reviewHelp": "Study answers are shown below. Detailed explanations are included where reviewed; confirm disputed wording with your school.",
   "result.correctFallback": "Correct answer: {answer}",
@@ -1366,6 +1367,7 @@ const RU = {
   "quiz.correctAnswer": "Правильный ответ: «{answer}»",
   "quiz.russianLoading": "Загружаем русские переводы…",
   "quiz.russianLoadError": "Не удалось загрузить русские переводы. Попробуйте ещё раз при подключении к интернету.",
+  "quiz.russianUnavailable": "Русские переводы недоступны. Можно продолжить с вопросами на английском или португальском без потери прогресса. Снова выберите русский, чтобы повторить загрузку.",
 
   "result.review": "Разберите пропущенные правила",
   "result.reviewHelp": "Ниже приведены ответы по учебному ключу и проверенные пояснения, где они доступны. Спорные формулировки уточняйте в автошколе.",
