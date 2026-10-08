@@ -24,6 +24,14 @@ function validProgress(value) {
   return true;
 }
 
+function validSavedQuestion(value) {
+  return record(value) && safeKeys(value)
+    && ["notSure", "mistake"].every((key) => optional(value, key, (flag) => typeof flag === "boolean"))
+    && (value.notSure === true || value.mistake === true);
+}
+
+const validSavedQuestions = (value) => record(value) && safeKeys(value) && Object.values(value).every(validSavedQuestion);
+
 function validSession(value) {
   return record(value) && safeKeys(value)
     && ["quick", "review", "mistakes", "exam", "learn", "repair"].includes(value.mode)
@@ -58,6 +66,7 @@ export function validateStudyProfile(value) {
   if (!record(value) || !safeKeys(value)
     || !record(value.questionProgress) || !safeKeys(value.questionProgress)
     || !Object.values(value.questionProgress).every(validProgress)
+    || !optional(value, "savedQuestions", validSavedQuestions)
     || !Array.isArray(value.sessions) || !value.sessions.every(validSession)
     || !optional(value, "answerActivity", validActivity)
     || !Object.entries(preferences).every(([key, check]) => optional(value, key, check))) {
@@ -71,10 +80,16 @@ export function normaliseStudyProfile(value, defaults) {
   // Clone the nested data: validation and an import must not mutate the caller.
   const copy = JSON.parse(JSON.stringify(value));
   const language = copy.language || defaults.language;
+  const savedQuestions = copy.savedQuestions || {};
+  // Include every historical mistake, even if later correct answers repaired it.
+  for (const [id, progress] of Object.entries(copy.questionProgress)) {
+    if (progress.wrong > 0) savedQuestions[id] = { ...savedQuestions[id], mistake: true };
+  }
   return {
     ...defaults, ...copy,
     language,
     answerActivity: copy.answerActivity || {},
+    savedQuestions,
     uiLanguage: copy.uiLanguage || (language === "ru" ? "ru" : "en"),
     sessions: copy.sessions.slice(-100).map((session) => ({
       ...session,
@@ -94,6 +109,10 @@ export function recoverStudyProfile(value, defaults) {
     if (record(value.questionProgress)) {
       recovered.questionProgress = Object.fromEntries(Object.entries(value.questionProgress)
         .filter(([key, item]) => safeKeys({ [key]: item }) && validProgress(item)));
+    }
+    if (record(value.savedQuestions)) {
+      recovered.savedQuestions = Object.fromEntries(Object.entries(value.savedQuestions)
+        .filter(([key, item]) => safeKeys({ [key]: item }) && validSavedQuestion(item)));
     }
     if (Array.isArray(value.sessions)) recovered.sessions = value.sessions.filter(validSession);
     if (record(value.answerActivity)) {

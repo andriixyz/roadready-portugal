@@ -37,6 +37,10 @@ Selecting an answer in any question mode immediately shows whether it was correc
 
 All question modes support **Previous question**, **Next question**, and numbered shortcuts. You can skip a question and return to it later; checked answers and feedback stay in the session. Practice answers count toward progress only once, as soon as you answer; mock answers count on submission. Mocks have **no time limit** and never submit automatically; their timer shows elapsed time and keeps running across navigation. At the end, **Return to unanswered** takes you to skipped questions before submitting. Use the left/right arrow keys to navigate, number keys 1–4 to answer, and Enter to continue.
 
+Check **Not sure** before choosing an answer to save the question even if you get it right. The mark locks with your first answer. Open **Not sure & mistakes** from Dashboard or Practice to browse these questions together with every question you have answered incorrectly, including past mistakes. Each question shows why it was saved; it stays in the collection after later correct answers.
+
+The collection saves when you answer, including in unfinished mocks; unanswered mock questions join it only when submitted as wrong. It is included in backups and private device sync. Browsing the collection does not record answers. Erasing study progress also clears it.
+
 Leaving an unfinished set through navigation, browser Back, or the exit button asks before discarding it. Cancel keeps the question order, checked feedback, answers and elapsed time. Reloading or closing an active session requests the browser's leave warning; confirming a leave discards the session. Sessions are not resumed after reload.
 
 **Due review** selects only questions whose review date has arrived. If none are due, it shows the existing empty-state message and keeps you on the current page.

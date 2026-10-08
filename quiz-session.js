@@ -1,8 +1,14 @@
 export function createQuizSession(mode, questions, language, now = Date.now()) {
   return {
-    mode, questions, index: 0, answers: [], picks: [], selected: null, checked: false,
+    mode, questions, index: 0, answers: [], picks: [], notSure: [], selected: null, checked: false,
     startedAt: now, elapsedSeconds: mode === "exam" ? 0 : null, questionLanguage: language,
   };
+}
+
+export function setSessionNotSure(session, value) {
+  if (session.result || session.checked || typeof value !== "boolean") return false;
+  session.notSure[session.index] = value;
+  return true;
 }
 
 export function selectSessionAnswer(session, key) {
@@ -17,7 +23,7 @@ export function selectSessionAnswer(session, key) {
 export function checkSessionAnswer(session) {
   if (session.result || session.checked || !session.selected) return null;
   const question = session.questions[session.index];
-  const answer = { questionId: question.id, pick: session.selected, correct: session.selected === question.correct };
+  const answer = { questionId: question.id, pick: session.selected, correct: session.selected === question.correct, notSure: Boolean(session.notSure[session.index]) };
   session.answers[session.index] = answer;
   session.checked = true;
   return answer;

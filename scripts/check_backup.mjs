@@ -15,6 +15,7 @@ const source = (await readFile(new URL("../app.js", import.meta.url), "utf8"))
 const good = {
   language: "en", uiLanguage: "en", dailyGoal: 20,
   questionProgress: { "bc-1165": { correct: 2, wrong: 1, streak: 1, nextReview: "2026-10-03T10:00:00Z" } },
+  savedQuestions: { "bc-1165": { notSure: true }, "correct-uncertain": { notSure: true } },
   sessions: [{ mode: "quick", total: 10, correct: 8, completedAt: "2026-10-01T10:00:00Z" }],
 };
 const copy = (value) => JSON.parse(JSON.stringify(value));
@@ -89,6 +90,12 @@ for (const damage of [
   (p) => { p.examPlan = { startedOn: "2026-10-07", examDate: "2026-10-27", language: "unknown" }; },
   (p) => { p.questionProgress["bc-1165"].firstSeenAt = "yesterday"; },
   (p) => { p.sessions[0].languageChanged = "yes"; },
+  (p) => { p.savedQuestions = []; },
+  (p) => { p.savedQuestions.broken = null; },
+  (p) => { p.savedQuestions.broken = { notSure: "yes" }; },
+  (p) => { p.savedQuestions.broken = { mistake: 1 }; },
+  (p) => { p.savedQuestions.broken = { notSure: false, mistake: false }; },
+  (p) => { p.savedQuestions = JSON.parse('{"__proto__":{"notSure":true}}'); },
 ]) {
   const app = harness();
   const originalMemory = app.run("JSON.stringify(profile)");
@@ -130,6 +137,8 @@ for (const envelope of [good, { app: "RoadReady Portugal", version: 2, profile: 
   const reloaded = harness(app.storage.get("roadready-profile"));
   reloaded.run("render(); openSettings()");
   assert.equal(reloaded.run("getStats().seen"), 1);
+  assert.equal(reloaded.run("profile.savedQuestions['correct-uncertain'].notSure"), true, "Backups preserve uncertain correct questions without progress records");
+  assert.equal(reloaded.run("profile.savedQuestions['bc-1165'].notSure && profile.savedQuestions['bc-1165'].mistake"), true);
   assert.equal(reloaded.node("#settingsModal").hidden, false);
 }
 
@@ -150,15 +159,22 @@ for (const failConnect of [false, true]) {
 const damaged = copy(good);
 damaged.questionProgress.broken = null;
 damaged.sessions.push(null);
+damaged.savedQuestions.broken = { notSure: "yes" };
 damaged.answerActivity = { "2026-10-02": { phone: 2 }, "not-a-day": { phone: 3 }, "2026-10-03": null };
 const recovered = harness(damaged);
 recovered.run("render(); openSettings()");
 assert.equal(recovered.run("getStats().seen"), 1);
 assert.equal(recovered.run("profile.sessions.length"), 1);
+assert.equal(recovered.run("Object.keys(profile.savedQuestions).length"), 2, "Startup recovery salvages valid saved questions independently");
 assert.equal(recovered.node("#settingsModal").hidden, false);
 assert.equal(recovered.storage.get("roadready-profile-recovery"), JSON.stringify(damaged));
 assert.equal(recovered.run('JSON.stringify(profile.answerActivity)'), JSON.stringify({ "2026-10-02": { phone: 2 } }));
 assert.equal(harness("{broken").run("getStats().seen"), 0);
+const legacy = copy(good);
+delete legacy.savedQuestions;
+const legacyApp = harness(legacy);
+assert.equal(legacyApp.run("profile.savedQuestions['bc-1165'].mistake"), true, "All historical mistakes migrate into the saved collection");
+assert.equal(legacyApp.run("profile.savedQuestions['bc-1165'].notSure"), undefined);
 
 // Startup must retain an available bank when the optional overlay is offline.
 const english = JSON.parse(await readFile(new URL("../public/data/questions-en.json", import.meta.url), "utf8"));

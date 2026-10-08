@@ -64,6 +64,8 @@ for (const mode of ["quick", "review", "mistakes", "exam", "learn", "repair"]) {
   assert.ok(main.innerHTML.includes('class="answer-option correct" data-answer="A"'), "Show the study-key choice");
   assert.ok(main.innerHTML.includes('class="answer-option wrong" data-answer="B"'), "Show the chosen wrong choice");
   assert.equal(run("profile.sessions.length"), 0, "Showing feedback must not submit the session");
+  assert.equal(run("profile.savedQuestions['test-0'].mistake"), true, "Every checked mistake saves immediately, including unfinished mocks");
+  assert.ok(main.innerHTML.includes(translate("saved.answerSaved", "en")));
   run("chooseAnswer('A'); navigateQuestion(1); navigateQuestion(0); applySyncedProfile(profile); renderQuestion()");
   assert.equal(run("session.answers[0].pick"), "B", "Revealing the key must not allow correcting the recorded attempt");
   assert.ok(main.innerHTML.includes('class="feedback incorrect"'), "Navigation and sync must preserve mistake feedback");
@@ -99,6 +101,39 @@ for (const mode of ["quick", "review", "mistakes", "exam", "learn", "repair"]) {
   assert.equal(run("profile.sessions.length"), 1, "Repeated events must not record another session");
   assert.equal(run("Object.values(profile.questionProgress).reduce((sum, item) => sum + item.correct + item.wrong, 0)"), 3);
 }
+
+for (const mode of ["quick", "review", "mistakes", "exam", "learn", "repair"]) {
+  run(`profile = defaultProfile(); questions = fixtureQuestions;
+    session = createQuizSession("${mode}", questions, "en"); location.hash = "#quiz"; renderQuestion();`);
+  node("#notSure").listeners.change({ target: { checked: true } });
+  assert.equal(run("Object.keys(profile.savedQuestions).length"), 0, "Checking alone must not save an unanswered question");
+  run("navigateQuestion(1); navigateQuestion(0); applySyncedProfile(profile)");
+  assert.ok(main.innerHTML.includes('id="notSure" type="checkbox" aria-describedby="notSureHelp" checked'));
+  run("chooseAnswer('A')");
+  assert.equal(run("session.answers[0].notSure"), true);
+  assert.equal(run("profile.savedQuestions['test-0'].notSure"), true, "An uncertain correct answer belongs in the collection");
+  assert.equal(run("profile.savedQuestions['test-0'].mistake"), undefined, "Uncertainty must not change the answer outcome");
+  assert.equal(run("profile.questionProgress['test-0']?.correct || 0"), mode === "exam" ? 0 : 1);
+  const before = run("JSON.stringify(profile.savedQuestions)");
+  node("#notSure").listeners.change({ target: { checked: false } });
+  run("chooseAnswer('B'); navigateQuestion(1); navigateQuestion(0); renderQuestion()");
+  assert.equal(run("session.answers[0].notSure"), true, "A checked uncertainty mark cannot be rewritten after feedback");
+  assert.equal(run("JSON.stringify(profile.savedQuestions)"), before, "Repeated answers/renders cannot duplicate saved questions");
+  run("session = null; profile = loadProfile(); location.hash = '#saved-questions'; render()");
+  assert.equal(run("savedQuestionCollection().length"), 1, "Saved questions survive abandoning a set and reloading the profile");
+  assert.ok(main.innerHTML.includes('class="card saved-question"'));
+  assert.ok(main.innerHTML.includes('Correct option'), "The collection retains the question and all its choices");
+  run("session = createQuizSession('quick', questions, 'en'); location.hash = '#quiz'; chooseAnswer('B'); session = createQuizSession('quick', questions, 'en'); chooseAnswer('A')");
+  assert.equal(run("profile.savedQuestions['test-0'].notSure && profile.savedQuestions['test-0'].mistake"), true, "Both reasons persist after later confident correct answers");
+}
+
+run("profile = defaultProfile(); questions = fixtureQuestions; session = createQuizSession('exam', questions, 'en'); location.hash = '#quiz'; finishSession()");
+assert.equal(run("Object.keys(profile.savedQuestions).length"), 3, "Unanswered submitted mock questions count as mistakes in the collection");
+run("profile = normaliseProfile({ questionProgress: { 'test-0': {correct: 10, wrong: 1} }, sessions: [] }); session = null; renderSavedQuestions()");
+assert.equal(run("savedQuestionCollection().length"), 1, "Historical mistakes remain saved even with high lifetime accuracy");
+assert.equal(run("mistakeQuestions().length"), 0, "The collection must preserve the existing mistake clinic's selection rules");
+run("profile = defaultProfile(); renderSavedQuestions()");
+assert.ok(main.innerHTML.includes(translate("saved.emptyTitle", "en")));
 
 run(`questions = fixtureQuestions; questions[0].image = 'https://example.test/road.jpg';
   questions[0].sourceUrl = 'https://example.test/question/1';

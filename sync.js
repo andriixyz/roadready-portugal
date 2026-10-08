@@ -70,9 +70,9 @@ export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
   let local = clone(localProfile || {}), cloud = clone(cloudProfile || {});
   // A reset is a new history generation. Stale devices must not restore erased results.
   if (timestamp(local.resetAt) > timestamp(cloud.resetAt)) {
-    cloud = { ...cloud, questionProgress: {}, sessions: [], answerActivity: {}, streak: 0, startedAt: local.startedAt, resetAt: local.resetAt };
+    cloud = { ...cloud, questionProgress: {}, savedQuestions: {}, sessions: [], answerActivity: {}, streak: 0, startedAt: local.startedAt, resetAt: local.resetAt };
   } else if (timestamp(cloud.resetAt) > timestamp(local.resetAt)) {
-    local = { ...local, questionProgress: {}, sessions: [], answerActivity: {}, streak: 0, startedAt: cloud.startedAt, resetAt: cloud.resetAt };
+    local = { ...local, questionProgress: {}, savedQuestions: {}, sessions: [], answerActivity: {}, streak: 0, startedAt: cloud.startedAt, resetAt: cloud.resetAt };
   }
   const localUpdatedAt = local.updatedAt, cloudUpdatedAt = cloud.updatedAt;
   const newest = timestamp(localUpdatedAt) >= timestamp(cloudUpdatedAt) ? local : cloud;
@@ -80,6 +80,14 @@ export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
   for (const id of [...new Set([...Object.keys(cloud.questionProgress || {}), ...Object.keys(local.questionProgress || {})])].sort()) {
     const a = local.questionProgress?.[id], b = cloud.questionProgress?.[id];
     questionProgress[id] = a && b ? mergeQuestionProgress(a, b) : clone(a || b);
+  }
+  const savedQuestions = {};
+  for (const id of [...new Set([...Object.keys(local.savedQuestions || {}), ...Object.keys(cloud.savedQuestions || {})])].sort()) {
+    const a = local.savedQuestions?.[id], b = cloud.savedQuestions?.[id];
+    savedQuestions[id] = {
+      ...(a?.notSure || b?.notSure ? { notSure: true } : {}),
+      ...(a?.mistake || b?.mistake ? { mistake: true } : {}),
+    };
   }
   const sessions = new Map();
   [...(cloud.sessions || []), ...(local.sessions || [])].forEach(item => {
@@ -100,9 +108,10 @@ export function mergeProfiles(localProfile = {}, cloudProfile = {}) {
     examPlan: laterValue(local.examPlan, cloud.examPlan, localUpdatedAt, cloudUpdatedAt) || local.examPlan || cloud.examPlan || null,
     streak: Math.max(local.streak || 1, cloud.streak || 1),
     questionProgress,
+    savedQuestions,
     sessions: [...sessions.values()].sort((a, b) => timestamp(a.completedAt) - timestamp(b.completedAt)).slice(-100),
     answerActivity: mergeAnswerActivity(local.answerActivity, cloud.answerActivity),
-    ...Object.fromEntries(Object.entries(newest).filter(([key]) => !["startedAt", "updatedAt", "dailyGoal", "language", "uiLanguage", "examPlan", "streak", "questionProgress", "sessions", "answerActivity"].includes(key))),
+    ...Object.fromEntries(Object.entries(newest).filter(([key]) => !["startedAt", "updatedAt", "dailyGoal", "language", "uiLanguage", "examPlan", "streak", "questionProgress", "savedQuestions", "sessions", "answerActivity"].includes(key))),
   };
 }
 

@@ -1,8 +1,8 @@
-import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261007-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261008-4";
-import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261007-3";
+import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261008-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261008-5";
+import { createQuizSession, setSessionNotSure, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261008-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
-import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261007-1";
+import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261008-1";
 import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
 import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "./question-verification.js?v=20261002-1";
 import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions } from "./exam-plan.js?v=20261008-1";
@@ -14,6 +14,8 @@ const main = $("#mainContent");
 const SESSION_LIMITS = { quick: 10, review: 20, mistakes: 20, exam: 30, learn: 20, repair: 20 };
 const suggestedExamPlan = { startedOn: "2026-10-07", examDate: "2026-10-27", language: "en" };
 let topicOrder = "weakest";
+let savedQuestionPage = 0;
+const SAVED_QUESTIONS_PER_PAGE = 20;
 
 const TOPIC_NAMES = {
   "Cedência de passagem": { en: "Right of way", ru: "Право преимущественного проезда" },
@@ -76,6 +78,7 @@ const defaultProfile = () => ({
   uiLanguage: "en",
   language: "en",
   questionProgress: {},
+  savedQuestions: {},
   sessions: [],
   answerActivity: {},
   streak: 0,
@@ -336,8 +339,9 @@ function render() {
   document.body.dataset.route = route;
   clearInterval(timerId);
   if (route !== "quiz") session = null;
-  setActiveRoute(route);
+  setActiveRoute(route === "saved-questions" ? "practice" : route);
   if (route === "practice") renderPractice();
+  else if (route === "saved-questions") renderSavedQuestions();
   else if (route === "progress") renderProgress();
   else if (route === "sources") renderSources();
   else if (route === "speed-limits") renderSpeedLimits(main, { t, escapeHtml, onPractice: () => { void startSession("quick", "Velocidade"); } });
@@ -390,7 +394,7 @@ function renderDashboard() {
       <details class="plan-roadmap"><summary>${t("plan.roadmap")}</summary>${planScheduleMarkup(plan)}</details>
       <div class="section-heading"><h2>${t("plan.weakTopics")}</h2></div>
       <section class="weak-topic-grid">${plan.readiness.topics.filter((topic) => !topic.ready).slice(0, 3).map((topic) => `<article class="task-card"><h3>${escapeHtml(topicName(topic.topic, profile.uiLanguage))}</h3><p>${t("plan.weakTopicEvidence", { seen: formatNumber(topic.seen), total: formatNumber(topic.total), accuracy: formatNumber(Math.round(topic.accuracy * 100)) })}</p><button data-topic="${escapeHtml(topic.topic)}">${t("plan.practiceTopic")} →</button></article>`).join("") || `<p class="muted">${t("plan.topicsMet")}</p>`}</section>
-      <div class="section-heading"><h2>${t("plan.extraPractice")}</h2></div>
+      <div class="section-heading"><h2>${t("plan.extraPractice")}</h2><a class="text-link" href="#saved-questions">${t("saved.title")} (${formatNumber(savedQuestionCollection().length)}) →</a></div>
       <section class="task-grid">
         <article class="task-card"><div class="task-top"><span class="task-icon">01</span><span class="mode-kicker">${t("dashboard.learn")}</span></div><h3>${t("dashboard.newQuestions")}</h3><p>${t("dashboard.newQuestionsDescription", { questions: quickCount })}</p><button data-start="quick">${t("dashboard.startQuick")}</button></article>
         <article class="task-card"><div class="task-top"><span class="task-icon">↻</span><span class="mode-kicker">${t("dashboard.recall")}</span></div><h3>${t("dashboard.dueForReview", { count: formatNumber(s.due) })}</h3><p>${t("dashboard.intervals")}</p><button data-start="review">${t("dashboard.reviewDue")}</button></article>
@@ -416,6 +420,7 @@ function renderPractice() {
       ${russianCorpusNotice()}
       <header class="page-header"><div><span class="eyebrow">${t("practice.eyebrow")}</span><h1>${t("practice.title")}</h1><p>${t("practice.subtitle")}</p></div><span class="date-chip">${t("practice.loaded", { questions: formatQuestionCount(questions.length) })}</span></header>
       <a class="speed-preview" href="#speed-limits"><span class="speed-preview-numbers" aria-hidden="true">50 <i>90</i> 100 <i>120</i></span><div><strong>${t("speed.previewTitle")}</strong><p>${t("speed.previewHelp")}</p></div><span class="text-link">${t("speed.previewOpen")} →</span></a>
+      <a class="card saved-preview" href="#saved-questions"><div><strong>${t("saved.title")}</strong><p>${t("saved.previewHelp")}</p></div><span class="text-link">${t("saved.open", { count: formatNumber(savedQuestionCollection().length) })} →</span></a>
       <section class="mode-grid">
         <article class="card mode-card featured"><span class="mode-badge">${t("practice.recommended")}</span><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("learn")) })}</span><h3>${t("plan.task.new")}</h3><p>${t("plan.learnDescription", { count: formatQuestionCount(plan.unseen), target: formatNumber(plan.newTarget) })}</p><button class="button button-accent" data-start="learn">${t("plan.start.learn")}</button></article>
         <article class="card mode-card"><span class="mode-badge">${t("practice.available", { count: formatNumber(plan.readiness.unresolved) })}</span><span class="mode-kicker">${t("practice.repair")}</span><h3>${t("plan.task.repair")}</h3><p>${t("plan.repairDescription")}</p><button class="button button-primary" data-start="repair">${t("plan.start.repair")}</button></article>
@@ -428,6 +433,49 @@ function renderPractice() {
       ${planScheduleMarkup(plan)}
     </div>`;
   bindStartButtons();
+}
+
+function savedQuestionCollection() {
+  return questions.filter((question) => profile.savedQuestions[question.id] || profile.questionProgress[question.id]?.wrong > 0);
+}
+
+function rememberQuestion(question, { correct, notSure = false }) {
+  if (correct && !notSure) return false;
+  const current = profile.savedQuestions[question.id] || {};
+  const saved = { ...current, ...(notSure ? { notSure: true } : {}), ...(!correct ? { mistake: true } : {}) };
+  if (current.notSure === saved.notSure && current.mistake === saved.mistake) return false;
+  profile.savedQuestions[question.id] = saved;
+  return true;
+}
+
+function renderSavedQuestions() {
+  const collection = savedQuestionCollection();
+  const pageCount = Math.max(1, Math.ceil(collection.length / SAVED_QUESTIONS_PER_PAGE));
+  savedQuestionPage = clamp(savedQuestionPage, 0, pageCount - 1);
+  const language = profile.language;
+  const pageQuestions = collection.slice(savedQuestionPage * SAVED_QUESTIONS_PER_PAGE, (savedQuestionPage + 1) * SAVED_QUESTIONS_PER_PAGE);
+  main.innerHTML = `<div class="page saved-page">
+    ${russianCorpusNotice()}
+    <header class="page-header"><div><span class="eyebrow">${t("saved.eyebrow")}</span><h1>${t("saved.title")}</h1><p>${t("saved.description")}</p></div><span class="date-chip">${formatQuestionCount(collection.length)}</span></header>
+    <div class="saved-toolbar"><a class="text-link" href="#practice">← ${t("nav.practice")}</a><div class="language-toggle" role="group" aria-label="${t("aria.questionLanguage")}">${["en", "ru", "pt"].map((value) => `<button type="button" data-lang="${value}" class="${language === value ? "active" : ""}" aria-pressed="${language === value}">${value.toUpperCase()}</button>`).join("")}</div></div>
+    ${collection.length ? `<section class="saved-question-list" aria-label="${t("saved.title")}">${pageQuestions.map((question) => {
+      const saved = profile.savedQuestions[question.id] || {};
+      const mistake = saved.mistake || profile.questionProgress[question.id]?.wrong > 0;
+      const id = question.sourceId || question.id;
+      const image = question.image ? `<img class="saved-question-image" src="${escapeHtml(getQuestionImagePath(question))}" alt="${escapeHtml(t("quiz.imageAlt", { id }))}" loading="lazy" />` : "";
+      return `<details class="card saved-question"><summary><span class="saved-question-heading"><span class="saved-question-id">${t("quiz.source", { id: escapeHtml(id) })}</span><span class="saved-question-title">${escapeHtml(question.text?.[language] || question.text?.en || question.text?.pt)}</span><span class="saved-reasons">${saved.notSure ? `<span>${t("quiz.notSure")}</span>` : ""}${mistake ? `<span>${t("saved.mistake")}</span>` : ""}</span></span></summary><div class="saved-question-content">${image}<p class="question-topic">${escapeHtml(topicName(question.topic, language))}</p><ol class="saved-question-options">${question.answers.map((answer) => `<li><strong>${escapeHtml(answer.key)}</strong><span>${escapeHtml(answer[language] || answer.en || answer.pt)}</span></li>`).join("")}</ol><a class="text-link" href="${escapeHtml(question.sourceUrl)}" target="_blank" rel="noopener noreferrer">${t("quiz.source", { id: escapeHtml(id) })} ↗</a></div></details>`;
+    }).join("")}</section>` : `<div class="card saved-empty"><h2>${t("saved.emptyTitle")}</h2><p>${t("saved.emptyHelp")}</p></div>`}
+    ${pageCount > 1 ? `<nav class="saved-pagination" aria-label="${t("saved.pagination")}"><button class="button button-secondary" id="savedPrevious" ${savedQuestionPage === 0 ? "disabled" : ""}>← ${t("saved.previous")}</button><span role="status">${t("saved.page", { page: formatNumber(savedQuestionPage + 1), total: formatNumber(pageCount) })}</span><button class="button button-secondary" id="savedNext" ${savedQuestionPage === pageCount - 1 ? "disabled" : ""}>${t("saved.next")} →</button></nav>` : ""}
+  </div>`;
+  $$('[data-lang]').forEach((button) => button.addEventListener("click", () => { void setQuestionLanguage(button.dataset.lang); }));
+  ["Previous", "Next"].forEach((direction) => $("#saved" + direction)?.addEventListener("click", () => {
+    savedQuestionPage += direction === "Next" ? 1 : -1;
+    renderSavedQuestions();
+    main.scrollIntoView({ block: "start", behavior: "instant" });
+    const heading = $(".saved-page h1");
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+  }));
 }
 
 function dueQuestions(now = Date.now()) {
@@ -574,6 +622,7 @@ function renderQuestion() {
             <h1>${escapeHtml(title)}</h1>
           </div>
           ${questionVerificationMarkup(q, session.checked)}
+          <div class="not-sure-control"><label for="notSure"><input id="notSure" type="checkbox" aria-describedby="notSureHelp" ${session.notSure[session.index] ? "checked" : ""} ${session.checked ? "disabled" : ""} /><span>${t("quiz.notSure")}</span></label><p id="notSureHelp">${t("quiz.notSureHelp")}</p></div>
           <div class="answers">${q.answers.map((answer, i) => {
             const selected = session.selected === answer.key || answerState?.pick === answer.key;
             const checked = session.checked;
@@ -581,6 +630,7 @@ function renderQuestion() {
             const marker = checked && answer.key === q.correct ? "✓" : checked && selected ? "×" : "";
             return `<button class="answer-option ${status}" data-answer="${answer.key}" aria-pressed="${selected}" ${checked ? "disabled" : ""}><span class="answer-key">${i + 1}</span><span>${escapeHtml(answer[language] || answer.en || answer.pt)}</span><span class="answer-marker">${marker}</span></button>`;
           }).join("")}</div>
+          ${answerState && (answerState.notSure || !answerState.correct) ? `<p class="question-saved-note" role="status">✓ ${t("saved.answerSaved")}</p>` : ""}
           ${session.checked ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}" id="answerFeedback" tabindex="-1" role="status"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: q.correct })}</strong></div><p>${escapeHtml(explanation)}</p>${explanationSourceLink(q)}<small>${session.mode === "exam" ? t("quiz.feedbackHint") : session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
           <div class="quiz-actions"><span class="quiz-hint">${t("quiz.keyboardHint")}</span><button class="button ${session.checked ? "button-primary" : "button-accent"}" id="quizPrimary" ${session.checked ? "" : "disabled"}>${session.checked ? advanceLabel : t("quiz.selectAnswer")} →</button></div>
           <div class="question-capture-actions"><button class="button button-primary" id="askChatGPT" type="button">${t("quiz.askChatGPT")} ↗</button><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="copyQuestionPrompt" type="button">${t("quiz.copyPrompt")}</button><button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button><a class="button button-ghost" id="chatGPTOpenLink" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" hidden>${t("quiz.openChatGPT")} ↗</a></div>
@@ -593,6 +643,7 @@ function renderQuestion() {
   $("#exitQuiz").addEventListener("click", () => { location.hash = "practice"; });
   $$('[data-lang]').forEach((button) => button.addEventListener("click", () => { void setQuestionLanguage(button.dataset.lang); }));
   $$("[data-answer]").forEach((button) => button.addEventListener("click", () => chooseAnswer(button.dataset.answer)));
+  $("#notSure").addEventListener("change", (event) => { setSessionNotSure(session, event.target.checked); });
   $("#quizPrimary").addEventListener("click", advanceQuiz);
   $("#quizPrevious").addEventListener("click", () => navigateQuestion(session.index - 1));
   $("#quizNext").addEventListener("click", () => navigateQuestion(session.index + 1));
@@ -698,7 +749,7 @@ async function setQuestionLanguage(language) {
   profile.language = language;
   setSessionLanguage(language);
   saveProfile();
-  renderQuestion();
+  render();
 }
 
 function setSessionLanguage(language) {
@@ -710,7 +761,9 @@ function setSessionLanguage(language) {
 function chooseAnswer(key) {
   if (!selectSessionAnswer(session, key)) return;
   const answer = checkSessionAnswer(session);
-  if (session.mode !== "exam") recordQuestion(session.questions[session.index], answer.correct);
+  const question = session.questions[session.index];
+  if (session.mode !== "exam") recordQuestion(question, answer.correct, answer.notSure);
+  else if (rememberQuestion(question, answer)) saveProfile();
   renderQuestion();
   const feedback = $("#answerFeedback");
   feedback.focus({ preventScroll: true });
@@ -741,7 +794,7 @@ function advanceQuiz() {
   navigateQuestion(session.index + 1);
 }
 
-function recordQuestion(question, isCorrect) {
+function recordQuestion(question, isCorrect, notSure = false) {
   const now = new Date();
   const current = profile.questionProgress[question.id] || { correct: 0, wrong: 0, streak: 0 };
   const streak = isCorrect ? (current.streak || 0) + 1 : 0;
@@ -750,6 +803,7 @@ function recordQuestion(question, isCorrect) {
   const nextReview = new Date(now.getTime() + days * 86400000).toISOString();
   const firstSeen = (current.correct || 0) + (current.wrong || 0) === 0 ? { firstSeenAt: now.toISOString() } : {};
   profile.questionProgress[question.id] = { ...incrementAnswerCounts(current, isCorrect, deviceId), ...firstSeen, streak, lastAnswer: now.toISOString(), nextReview };
+  rememberQuestion(question, { correct: isCorrect, notSure });
   recordStudyActivity(profile, deviceId, now);
   saveProfile();
 }
@@ -757,7 +811,7 @@ function recordQuestion(question, isCorrect) {
 function finishSession() {
   if (!session || session.result) return;
   clearInterval(timerId);
-  if (session.mode === "exam") session.questions.forEach((q, index) => recordQuestion(q, session.answers[index]?.correct || false));
+  if (session.mode === "exam") session.questions.forEach((q, index) => recordQuestion(q, session.answers[index]?.correct || false, session.answers[index]?.notSure));
   const correct = session.answers.filter((answer) => answer?.correct).length;
   const total = session.questions.length;
   const result = {

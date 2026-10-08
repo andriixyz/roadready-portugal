@@ -12,6 +12,7 @@ const local = {
   questionProgress: {
     q1: { correct: 2, wrong: 0, streak: 2, lastAnswer: "2026-07-28T09:00:00.000Z", nextReview: "2026-07-31T09:00:00.000Z" },
   },
+  savedQuestions: { q1: { notSure: true }, uncertain: { notSure: true } },
   sessions: [
     { id: "local-session", mode: "quick", correct: 9, total: 10, completedAt: "2026-07-28T09:30:00.000Z" },
   ],
@@ -28,6 +29,7 @@ const cloud = {
     q1: { correct: 1, wrong: 1, streak: 0, lastAnswer: "2026-07-27T09:00:00.000Z", nextReview: "2026-07-27T09:00:00.000Z" },
     q2: { correct: 1, wrong: 0, streak: 1, lastAnswer: "2026-07-27T09:15:00.000Z", nextReview: "2026-07-28T09:15:00.000Z" },
   },
+  savedQuestions: { q1: { mistake: true }, historical: { mistake: true } },
   sessions: [
     { id: "cloud-session", mode: "exam", correct: 28, total: 30, completedAt: "2026-07-27T09:30:00.000Z" },
   ],
@@ -45,6 +47,10 @@ assert.equal(merged.questionProgress.q1.wrong, 1);
 assert.equal(merged.questionProgress.q1.nextReview, local.questionProgress.q1.nextReview);
 assert.deepEqual(Object.keys(merged.questionProgress).sort(), ["q1", "q2"]);
 assert.deepEqual(merged.sessions.map((item) => item.id), ["cloud-session", "local-session"]);
+assert.deepEqual(merged.savedQuestions, { historical: { mistake: true }, q1: { notSure: true, mistake: true }, uncertain: { notSure: true } });
+assert.deepEqual(mergeProfiles(cloud, local).savedQuestions, merged.savedQuestions, "Saved reasons merge independently of preference timestamps");
+assert.deepEqual(mergeProfiles(merged, merged).savedQuestions, merged.savedQuestions, "Repeated sync cannot duplicate or clear saved reasons");
+assert.deepEqual(mergeProfiles({ ...local, savedQuestions: undefined }, cloud).savedQuestions, cloud.savedQuestions, "A legacy client cannot drop the collection");
 
 const legacyNewer = { ...local, updatedAt: "2026-07-29T10:00:00.000Z" };
 delete legacyNewer.uiLanguage;
@@ -57,9 +63,12 @@ const phone = incrementAnswerCounts(local.questionProgress.q1, true, "phone");
 const combined = mergeProfiles({ ...local, questionProgress: { q1: mac } }, { ...local, questionProgress: { q1: phone } });
 assert.equal(combined.questionProgress.q1.correct, 4, "Independent offline answers must both count");
 assert.equal(mergeProfiles(combined, combined).questionProgress.q1.correct, 4, "Repeated sync must not double-count");
-const reset = { ...local, resetAt: "2026-09-30T10:00:00.000Z", updatedAt: "2026-09-30T10:00:00.000Z", questionProgress: {}, sessions: [] };
+const reset = { ...local, resetAt: "2026-09-30T10:00:00.000Z", updatedAt: "2026-09-30T10:00:00.000Z", questionProgress: {}, savedQuestions: {}, sessions: [] };
 assert.deepEqual(mergeProfiles(local, reset).questionProgress, {});
 assert.deepEqual(mergeProfiles(reset, local).sessions, []);
+assert.deepEqual(mergeProfiles(local, reset).savedQuestions, {});
+assert.deepEqual(mergeProfiles(reset, cloud).savedQuestions, {}, "Stale devices cannot resurrect saved questions after reset");
+assert.deepEqual(mergeProfiles({ ...reset, savedQuestions: { fresh: { notSure: true } } }, cloud).savedQuestions, { fresh: { notSure: true } });
 
 const copy = value => JSON.parse(JSON.stringify(value));
 class MemoryStorage {
@@ -125,9 +134,12 @@ assert.equal(b.browser.location.hash, "#dashboard", "The device key must leave t
 await b.controller.initialize();
 assert.equal(b.get().uiLanguage, "ru", "A fresh device must inherit cloud preferences");
 assert.deepEqual(b.get().questionProgress, a.get().questionProgress);
+assert.deepEqual(b.get().savedQuestions, a.get().savedQuestions, "Pairing restores the saved collection");
 const activityDate = new Date("2026-09-30T12:00:00.000Z");
 const macProfile = { ...a.get(), updatedAt: "2026-09-30T12:00:00.000Z", questionProgress: { q1: incrementAnswerCounts(a.get().questionProgress.q1, true, "mac") } };
 const phoneProfile = { ...b.get(), updatedAt: "2026-09-30T12:00:00.000Z", questionProgress: { q1: incrementAnswerCounts(b.get().questionProgress.q1, false, "phone") } };
+macProfile.savedQuestions = { ...macProfile.savedQuestions, offline: { notSure: true } };
+phoneProfile.savedQuestions = { ...phoneProfile.savedQuestions, offline: { mistake: true } };
 recordStudyActivity(macProfile, "mac", activityDate);
 recordStudyActivity(phoneProfile, "phone", activityDate);
 a.set(macProfile);
@@ -138,6 +150,7 @@ await a.controller.syncNow();
 assert.equal(a.get().questionProgress.q1.correct, 3);
 assert.equal(a.get().questionProgress.q1.wrong, 1);
 assert.deepEqual(a.get(), b.get());
+assert.deepEqual(a.get().savedQuestions.offline, { notSure: true, mistake: true }, "Offline reasons from linked devices both reach the collection");
 assert.equal(answersOnDay(a.get(), activityDate), 2, "Offline daily activity from both devices must reach the same profile");
 
 a.set({ ...a.get(), dailyGoal: 40, updatedAt: "2026-09-30T13:00:00.000Z" });
@@ -151,13 +164,15 @@ assert.equal(a.controller.getState().status, "offline");
 a.setOnline(true);
 await a.controller.syncNow();
 assert.equal(a.controller.getState().status, "synced");
-const c = createDevice({ ...copy(local), questionProgress: {}, sessions: [] });
+const c = createDevice({ ...copy(local), questionProgress: {}, savedQuestions: {}, sessions: [] });
 await c.controller.initialize();
 assert.notEqual(c.controller.getSyncKey(), key);
 assert.deepEqual(c.get().questionProgress, {}, "Different private keys must not see another profile");
+assert.deepEqual(c.get().savedQuestions, {}, "Different private keys must not see another collection");
 const activityBeforeFlight = answersOnDay(a.get(), activityDate);
 const answerWhileFetching = () => {
   const current = { ...a.get(), updatedAt: "2026-09-30T14:00:00.000Z", questionProgress: { ...a.get().questionProgress, q1: incrementAnswerCounts(a.get().questionProgress.q1, true, "mac") } };
+  current.savedQuestions = { ...current.savedQuestions, [`flight-${current.questionProgress.q1.correct}`]: { notSure: true } };
   recordStudyActivity(current, "mac", activityDate);
   a.set(current);
   a.controller.schedule();
@@ -166,6 +181,7 @@ duringRead = answerWhileFetching;
 await a.controller.syncNow();
 assert.equal(a.get().questionProgress.q1.correct, 4, "An answer made during a read must stay local");
 assert.equal(server.get(key).profile.questionProgress.q1.correct, 4, "An answer made during a read must reach the cloud");
+assert.equal(server.get(key).profile.savedQuestions["flight-4"].notSure, true, "A saved question made during a read must reach the cloud");
 assert.equal(answersOnDay(server.get(key).profile, activityDate), activityBeforeFlight + 1, "Daily activity made during a read must reach the cloud");
 a.set({ ...a.get(), dailyGoal: 50, updatedAt: "2026-09-30T14:00:00.000Z" });
 duringWrite = answerWhileFetching;
@@ -174,6 +190,7 @@ assert.equal(a.get().questionProgress.q1.correct, 5, "An answer made during a wr
 assert.equal(a.controller.getState().status, "pending");
 await a.controller.syncNow();
 assert.equal(server.get(key).profile.questionProgress.q1.correct, 5, "Queued in-flight answers must reach the cloud");
+assert.equal(server.get(key).profile.savedQuestions["flight-5"].notSure, true, "A saved question made during a write must reach the cloud");
 assert.equal(answersOnDay(server.get(key).profile, activityDate), activityBeforeFlight + 2, "Queued in-flight daily activity must reach the cloud once");
 a.set({ ...reset, resetAt: "2026-09-30T15:00:00.000Z", updatedAt: "2026-09-30T15:00:00.000Z" });
 await a.controller.syncNow();
@@ -181,5 +198,6 @@ await b.controller.syncNow();
 assert.deepEqual(b.get().questionProgress, {}, "A stale linked device must accept a synced reset");
 assert.deepEqual(server.get(key).profile.sessions, [], "A stale linked device must not restore reset sessions");
 assert.equal(answersOnDay(b.get(), activityDate), 0, "A stale linked device must not restore reset daily activity");
+assert.deepEqual(b.get().savedQuestions, {}, "A stale linked device must not restore reset saved questions");
 [a, b, c].forEach(device => device.controller.destroy());
 process.stdout.write("Personal sync checks passed: pairing, offline counters, conflicts, in-flight answers, reset, isolation, and migration.\n");
