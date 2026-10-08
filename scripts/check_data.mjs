@@ -65,6 +65,30 @@ for (const source of runtimeSources) {
   }
 }
 
+// Speed atlas content is addressed through derived keys, so check each one in both dictionaries.
+const { SPEED_ATLAS } = await import("../speed-limits.js");
+const speedKeys = [
+  ...SPEED_ATLAS.roads.flatMap((road) => [`speed.road.${road}`, `speed.cue.${road}`]),
+  ...SPEED_ATLAS.vehicles.flatMap((vehicle) => [`speed.vehicle.${vehicle.id}`, ...vehicle.variants.map(({ variant }) => `speed.memory.${vehicle.id}.${variant}`)]),
+  ...SPEED_ATLAS.signs.flatMap((sign) => ["name", "meaning", "trap"].map((part) => `speed.sign.${sign}.${part}`)),
+  ...SPEED_ATLAS.places.map((place) => `speed.place.${place}`),
+  ...SPEED_ATLAS.flash.flatMap((item) => [`speed.flash.${item}.q`, `speed.flash.${item}.a`]),
+  ...SPEED_ATLAS.facts.flatMap((fact) => [`speed.fact.${fact}.title`, `speed.fact.${fact}.body`]),
+  ...SPEED_ATLAS.levels.map((level) => `speed.level.${level}`),
+  ...SPEED_ATLAS.exceptions.flatMap((item) => [`speed.except.${item}.title`, `speed.except.${item}.body`]),
+  ...SPEED_ATLAS.decks.map((deck) => `speed.deck.${deck}`),
+  ...SPEED_ATLAS.drills.flatMap((drill) => [`speed.drill.${drill.id}.question`, `speed.drill.${drill.id}.why`, ...drill.choices.filter((choice) => typeof choice === "string").map((choice) => `speed.drill.${drill.id}.${choice}`)]),
+];
+for (const key of speedKeys) for (const language of ["en", "ru"]) if (!(key in TRANSLATIONS[language])) errors.push(`${key}: missing ${language === "en" ? "English" : "Russian"} speed-atlas translation`);
+for (const drill of SPEED_ATLAS.drills) {
+  if (!drill.choices.includes(drill.correct)) errors.push(`speed drill ${drill.id}: correct answer is not among the choices`);
+  if (!SPEED_ATLAS.decks.includes(drill.deck) || drill.deck === "all") errors.push(`speed drill ${drill.id}: unknown deck ${drill.deck}`);
+}
+for (const vehicle of SPEED_ATLAS.vehicles) for (const { variant, values } of vehicle.variants) {
+  if (values.length !== SPEED_ATLAS.roads.length) errors.push(`speed row ${vehicle.id}.${variant}: expected ${SPEED_ATLAS.roads.length} road values`);
+  for (const value of values) if (value !== null && (!Number.isInteger(value) || value < SPEED_ATLAS.sharedZone || value > 120 || value % 5 !== 0)) errors.push(`speed row ${vehicle.id}.${variant}: implausible limit ${value}`);
+}
+
 console.log(JSON.stringify({
   questions: base.questions.length,
   russianQuestions: russianEntries.length,

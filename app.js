@@ -1,12 +1,12 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261007-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261007-3";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261008-1";
 import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261007-3";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261007-1";
 import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
 import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "./question-verification.js?v=20261002-1";
 import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions } from "./exam-plan.js?v=20261007-3";
-import { renderSpeedLimits } from "./speed-limits.js?v=20261007-1";
+import { renderSpeedLimits } from "./speed-limits.js?v=20261008-1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];

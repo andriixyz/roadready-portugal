@@ -524,31 +524,44 @@ body.settings-open { overflow: hidden; }
 @keyframes shimmer { to { transform: translateX(100%); } }
 .mobile-nav { display: none; }
 
-/* Speed memory map: four road classes, then exceptions and active recall. */
+/* Speed atlas: vehicle rows, signs, moderation scenes, floors/ceilings, stopping model and active recall. */
 body[data-route="speed-limits"] .main-content:focus { outline: none; }
+.speed-page h2[tabindex]:focus { outline: none; }
+.speed-page h2[tabindex]:focus-visible { outline: 3px solid var(--orange); outline-offset: 6px; }
 .speed-header .eyebrow { color: var(--green); }
-.speed-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
+.speed-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
 .speed-header h1 { max-width: 750px; margin: 12px 0 14px; font: 500 clamp(38px, 4.5vw, 64px)/1.03 Georgia, serif; letter-spacing: -2px; }
-.speed-header p { max-width: 610px; color: var(--muted); font-size: 14px; line-height: 1.7; margin: 0; }
+.speed-header p { max-width: 640px; color: var(--muted); font-size: 14px; line-height: 1.7; margin: 0; }
 .speed-print { flex: none; margin-top: 8px; }
+.speed-chapters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 26px; }
+.speed-chapters button { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 6px 14px 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; }
+.speed-chapters button b { font: 700 10px/1 ui-monospace, monospace; color: var(--green); }
+.speed-chapters button:hover { border-color: var(--border-hover); }
 .speed-map { padding: 30px; border: 1px solid var(--line); border-radius: 26px; background: var(--surface); box-shadow: var(--shadow); }
-.speed-map-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.speed-map-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.speed-map-heading p, .speed-ladder-heading p { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; max-width: 640px; }
 .speed-step { color: var(--green); font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: 1.4px; }
 .speed-map h2, .speed-section-heading h2, .speed-recall h2 { margin: 10px 0 0; font: 500 clamp(23px, 2.7vw, 32px)/1.2 Georgia, serif; letter-spacing: -.7px; }
 .speed-map-unit { color: var(--muted); font-size: 13px; flex: none; white-space: nowrap; }
-.speed-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 14px 22px; margin-top: 24px; }
-.speed-vehicle-switch { display: flex; gap: 3px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-2); padding: 4px; }
-.speed-vehicle-switch button { min-height: 40px; border: 0; border-radius: 9px; padding: 9px 14px; color: var(--muted); background: transparent; font-size: 12px; font-weight: 750; cursor: pointer; }
-.speed-vehicle-switch button[aria-pressed="true"] { color: white; background: var(--green-solid); }
+.speed-garage { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 22px; }
+.speed-garage-chip { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 78px; padding: 10px 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1.3; text-align: center; cursor: pointer; transition: background 150ms ease, color 150ms ease, border-color 150ms ease; }
+.speed-garage-chip:hover { border-color: var(--border-hover); color: var(--ink); }
+.speed-garage-chip[aria-pressed="true"] { background: var(--green-solid); border-color: var(--green-solid); color: white; }
+.speed-vehicle-icon { width: 56px; height: 32px; flex: none; }
+.speed-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 22px; margin-top: 18px; }
 .speed-trailer { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; min-height: 44px; }
+.speed-trailer.is-disabled { color: var(--muted); cursor: default; }
 .speed-trailer input { width: 18px; height: 18px; accent-color: var(--green-solid); cursor: pointer; }
+.speed-trailer input:disabled { cursor: default; }
+.speed-scope { flex: 1 1 320px; color: var(--muted); font-size: 11px; line-height: 1.6; margin: 0; }
+.speed-scope b { color: var(--ink); }
 .speed-cover { margin-left: auto; min-height: 44px; padding: 8px 2px; border: 0; border-bottom: 1px dashed var(--border-hover); background: transparent; color: var(--green); font-size: 12px; font-weight: 750; cursor: pointer; }
-.speed-scope { color: var(--muted); font-size: 11px; line-height: 1.6; margin: 17px 0; }
-.speed-road-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.speed-road-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0 0; padding: 0; list-style: none; }
 .speed-road-card { position: relative; min-width: 0; text-align: center; padding: 17px 12px 18px; border-radius: 17px; background: var(--paper); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; }
 .speed-road-card:nth-child(2) { background: var(--green-2); }
 .speed-road-card:nth-child(3) { background: var(--violet-soft); }
 .speed-road-card:nth-child(4) { background: var(--orange-soft); }
+.speed-road-card.is-barred { opacity: .8; }
 .speed-road-count { align-self: flex-start; font: 700 10px/1.3 ui-monospace, monospace; color: var(--muted); }
 .speed-road-picture { width: 104px; height: 84px; margin: 8px auto 12px; color: var(--green); flex: none; }
 .speed-road-value { margin-bottom: 17px; }
@@ -556,6 +569,8 @@ body[data-route="speed-limits"] .main-content:focus { outline: none; }
 .speed-sign-small { width: 60px; border-width: 5px; font-size: 25px; letter-spacing: -1px; flex: none; }
 .speed-sign.is-covered .speed-number { visibility: hidden; }
 .speed-mask { position: absolute; color: #69756e; }
+.speed-barred-badge { display: grid; place-items: center; width: clamp(78px, 8vw, 110px); aspect-ratio: 1; padding: 8px; border: 8px solid var(--red); border-radius: 50%; background: var(--surface); color: var(--red); font-size: 10px; font-weight: 800; line-height: 1.3; text-transform: uppercase; letter-spacing: .4px; }
+.speed-barred { color: var(--muted); font-weight: 700; }
 .speed-road-card h3 { font-size: 14px; line-height: 1.35; margin: 0 0 8px; }
 .speed-road-card p { font-size: 10px; line-height: 1.5; color: var(--muted); margin: 0 0 18px; }
 .speed-road-cue { margin-top: auto; color: var(--ink); font-size: 10px; line-height: 1.6; }
@@ -568,35 +583,117 @@ body[data-route="speed-limits"] .main-content:focus { outline: none; }
 .speed-shared strong { font-size: 13px; line-height: 1.5; }
 .speed-shared p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .speed-shared-tag { margin-left: auto; color: var(--muted); font-size: 10px; line-height: 1.6; max-width: 125px; flex: none; }
+.speed-ladder { margin-top: 22px; }
+.speed-ladder-heading h3 { margin: 0; font: 500 20px/1.25 Georgia, serif; letter-spacing: -.3px; }
+.speed-rungs { display: grid; gap: 6px; margin: 16px 0 0; padding: 0; list-style: none; }
+.speed-rung { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 4px 14px; padding: 8px 12px 8px 8px; border-radius: 14px; background: var(--paper); border: 1px solid var(--line); }
+.speed-rung-value { display: grid; place-items: center; height: 44px; border-radius: 10px; background: var(--green-solid); color: white; font: 500 22px/1 Georgia, serif; }
+.speed-rung ul { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 0; padding: 0; list-style: none; }
+.speed-rung-member { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 4px; border-radius: 999px; font-size: 11px; font-weight: 650; color: var(--ink); }
+.speed-rung-member .speed-vehicle-icon { width: 36px; height: 20px; color: var(--muted); }
+.speed-rung-member small { color: var(--muted); font-size: 10px; font-weight: 700; }
+.speed-rung-member.is-current { background: var(--green-2); color: var(--green); }
+.speed-rung-member.is-current .speed-vehicle-icon { color: var(--green); }
+.speed-rung.is-barred { background: var(--surface-2); }
+.speed-rung.is-barred .speed-rung-value { background: var(--surface); color: var(--red); border: 2px solid var(--red); }
+.speed-rung.is-barred p { grid-column: 2; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.speed-table-details { margin-top: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+.speed-table-details summary { padding: 14px 18px; cursor: pointer; font-size: 12px; font-weight: 750; color: var(--green); list-style: none; }
+.speed-table-details summary::-webkit-details-marker { display: none; }
+.speed-table-details summary::before { content: "+ "; font-family: ui-monospace, monospace; }
+.speed-table-details[open] summary::before { content: "− "; }
+.speed-table-wrap { overflow-x: auto; padding: 0 12px; }
+.speed-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 11px; }
+.speed-table caption { text-align: left; padding: 0 6px 10px; color: var(--muted); font-size: 11px; }
+.speed-table th, .speed-table td { padding: 9px 8px; text-align: center; border-top: 1px solid var(--line); }
+.speed-table thead th { color: var(--muted); font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .6px; border-top: 0; }
+.speed-table tbody th { text-align: left; font-weight: 650; }
+.speed-table td b { font-size: 14px; font-weight: 800; }
+.speed-table tr.is-current { background: var(--green-2); color: var(--green); }
+.speed-table-details .speed-map-note { padding: 12px 18px 16px; margin: 0; }
 .speed-map-note { margin: 16px 0 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
 .speed-map-note .text-link { font-size: inherit; }
 .speed-section-heading { margin: 38px 0 20px; }
-.speed-section-heading p { margin: 9px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.speed-section-heading p { margin: 9px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; max-width: 720px; }
+.speed-sign-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.speed-sign-card { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); overflow: hidden; }
+.speed-sign-card.is-open { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); }
+.speed-sign-card > button { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; padding: 18px 12px 14px; border: 0; background: transparent; color: var(--ink); cursor: pointer; text-align: center; }
+.speed-sign-card > button:hover { background: var(--soft-surface); }
+.speed-sign-art { width: 84px; height: 84px; filter: drop-shadow(0 3px 0 rgba(23,38,31,.08)); }
+.speed-sign-card strong { font-size: 12px; line-height: 1.35; }
+.speed-sign-card small { color: var(--muted); font-size: 10px; }
+.speed-sign-card small b { font-family: ui-monospace, monospace; font-weight: 700; }
+.speed-sign-detail { padding: 0 16px 16px; border-top: 1px dashed var(--line); }
+.speed-sign-detail p { margin: 12px 0 0; font-size: 11px; line-height: 1.65; color: var(--muted); }
+.speed-sign-detail .speed-sign-trap { color: var(--ink); }
+.speed-sign-trap span { color: var(--orange); }
+.speed-moderate { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .95fr); gap: 20px; }
+.speed-places { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.speed-place { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px 14px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); font-size: 11px; line-height: 1.5; font-weight: 600; }
+.speed-place-index { position: absolute; top: 10px; right: 12px; font: 700 10px/1 ui-monospace, monospace; color: var(--muted); }
+.speed-scene-icon { width: 34px; height: 34px; color: var(--green); }
+.speed-flash-round { display: flex; flex-direction: column; padding: 22px; border-radius: 20px; background: var(--green-solid); color: white; }
+.speed-flash-round h3 { margin: 0; font: 500 22px/1.2 Georgia, serif; letter-spacing: -.3px; }
+.speed-flash-round > p { margin: 8px 0 14px; font-size: 11px; line-height: 1.6; color: #e3ecdf; }
+.speed-flash-round ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.speed-flash { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 12px; background: rgba(255,255,255,.08); }
+.speed-flash-mark { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--lime); color: #17261f; font-size: 14px; font-weight: 800; }
+.speed-flash.is-no .speed-flash-mark { background: #f3b4a6; }
+.speed-flash strong { display: block; font-size: 12px; line-height: 1.45; }
+.speed-flash p { margin: 4px 0 0; font-size: 11px; line-height: 1.6; color: #e3ecdf; }
+.speed-flash p b { color: white; }
+.speed-flash-round .text-link { margin-top: 16px; color: var(--lime); font-size: 10px; }
 .speed-traps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .speed-trap { border: 1px solid var(--line); border-radius: 20px; background: var(--soft-surface); padding: 24px; display: flex; flex-direction: column; align-items: flex-start; }
+.speed-trap-wide { grid-column: 1 / -1; }
 .speed-trap-index { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); color: var(--green); font: 750 11px/1 ui-monospace, monospace; }
 .speed-trap h3 { font: 500 22px/1.2 Georgia, serif; margin: 14px 0; letter-spacing: -.4px; }
 .speed-trap p { font-size: 12px; line-height: 1.7; color: var(--muted); margin: 0 0 14px; }
 .speed-trap .text-link { margin-top: auto; padding-top: 12px; font-size: 10px; }
-.speed-sign-examples { display: flex; justify-content: space-between; gap: 14px; width: 100%; margin: 2px 0 20px; }
-.speed-sign-examples > div { display: flex; flex-direction: column; align-items: center; min-width: 0; gap: 6px; text-align: center; flex: 1; }
-.speed-sign-examples strong { font-size: 10px; line-height: 1.6; }
-.speed-sign-examples small { color: var(--muted); font: 600 9px/1 ui-monospace, monospace; }
-.speed-blue-circle, .speed-blue-square { width: 60px; height: 60px; display: grid; place-items: center; background: #24649a; color: white; border: 3px solid white; box-shadow: 0 0 0 1px #24649a; font-size: 25px; font-weight: 800; }
-.speed-blue-circle { border-radius: 50%; }
-.speed-blue-square { border-radius: 4px; }
-.speed-example { width: 100%; display: flex; flex-direction: column; gap: 12px; margin: 4px 0 17px; padding: 16px; border-left: 3px solid var(--orange); background: var(--orange-soft); border-radius: 0 10px 10px 0; }
-.speed-example span { font-size: 11px; line-height: 1.6; }
-.speed-example strong { font-size: 25px; }
 .speed-floor { display: flex; align-items: center; gap: 17px; margin-bottom: 16px; }
 .speed-floor strong { font: 500 58px/1 Georgia, serif; color: var(--green); }
 .speed-floor span { font-size: 11px; line-height: 1.6; max-width: 190px; }
 .speed-trap .speed-trap-extra { font-size: 11px; }
-.speed-condition-icons { display: flex; align-items: center; gap: 27px; color: var(--green); font: 500 42px/1.3 Georgia, serif; margin: 0 0 14px; }
-.speed-condition-icons span { color: var(--violet); }
-.speed-stop-cue { font-size: 12px; line-height: 1.6; color: var(--green); margin-bottom: 8px; }
+.speed-excess { width: 100%; border-collapse: collapse; font-size: 11px; margin: 4px 0 12px; }
+.speed-excess th, .speed-excess td { padding: 8px 6px; text-align: left; border-top: 1px solid var(--line); }
+.speed-excess thead th { border-top: 0; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .6px; }
+.speed-excess tbody th { font-weight: 750; }
+.speed-excess td { font-weight: 650; font-variant-numeric: tabular-nums; }
+.speed-excess-minor th { color: var(--green); }
+.speed-excess-serious th { color: var(--orange); }
+.speed-excess-verySerious th { color: var(--red); }
+.speed-exceptions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 20px; width: 100%; margin: 4px 0 14px; padding: 0; list-style: none; }
+.speed-exceptions strong { display: block; font-size: 12px; line-height: 1.4; margin-bottom: 4px; }
+.speed-trap .speed-exceptions p { margin: 0; font-size: 11px; }
+.speed-physics { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 20px; }
+.speed-physics-lab { align-self: start; padding: 24px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); }
+.speed-physics-controls label { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 12px; font-weight: 700; }
+.speed-physics-controls output { font: 500 26px/1 Georgia, serif; color: var(--green); font-variant-numeric: tabular-nums; }
+.speed-physics-controls input[type="range"] { width: 100%; margin: 14px 0; accent-color: var(--green-solid); }
+.speed-surface-switch { display: inline-flex; gap: 3px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-2); padding: 4px; }
+.speed-surface-switch button { min-height: 36px; border: 0; border-radius: 9px; padding: 6px 14px; color: var(--muted); background: transparent; font-size: 12px; font-weight: 750; cursor: pointer; }
+.speed-surface-switch button[aria-pressed="true"] { color: white; background: var(--green-solid); }
+.speed-physics-bars { display: grid; gap: 12px; margin-top: 22px; }
+.speed-bar { display: grid; grid-template-columns: 130px 1fr 60px; align-items: center; gap: 10px; font-size: 11px; }
+.speed-bar output { text-align: right; font-weight: 750; font-variant-numeric: tabular-nums; }
+.speed-bar-track { height: 14px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.speed-bar-track i { display: block; height: 100%; border-radius: 999px; transition: width 220ms ease; }
+.speed-bar-reaction { background: var(--violet); }
+.speed-bar-braking { background: var(--orange); }
+.speed-bar-total { background: var(--green-solid); }
+.speed-bar.is-total { font-weight: 750; }
+.speed-physics-note { margin: 16px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.speed-facts { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.speed-facts li { padding: 14px 16px; border-left: 3px solid var(--green); border-radius: 0 12px 12px 0; background: var(--soft-surface); }
+.speed-facts strong { display: block; font-size: 12px; margin-bottom: 3px; }
+.speed-facts p { margin: 0; font-size: 11px; line-height: 1.6; color: var(--muted); }
 .speed-recall { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 30px; margin-top: 38px; padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); }
 .speed-recall-heading > p { font-size: 12px; color: var(--muted); line-height: 1.7; margin: 12px 0; }
+.speed-decks { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.speed-deck-chip { min-height: 34px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 750; cursor: pointer; }
+.speed-deck-chip small { font-size: 10px; opacity: .85; }
+.speed-deck-chip[aria-pressed="true"] { background: var(--green-solid); border-color: var(--green-solid); color: white; }
 .speed-recall-plan { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px 12px; font-size: 11px; margin: 20px 0; }
 .speed-recall-plan span { display: grid; place-items: center; width: 24px; height: 24px; background: var(--green-2); color: var(--green); font-size: 10px; font-weight: 800; border-radius: 50%; }
 .speed-recall-heading .button { font-size: 11px; }
@@ -636,11 +733,16 @@ body[data-route="speed-limits"] .main-content:focus { outline: none; }
 .speed-preview p { font-size: 11px; line-height: 1.6; color: var(--muted); margin: 5px 0 0; }
 .speed-preview > .text-link { flex: none; margin-left: auto; font-size: 11px; }
 
+@media (prefers-reduced-motion: reduce) {
+  .speed-bar-track i, .speed-garage-chip { transition: none; }
+}
+
 @media (max-width: 1100px) {
   .speed-controls { gap: 10px 14px; }
   .speed-cover { margin-left: 0; }
   .speed-road-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .speed-recall { grid-template-columns: minmax(0, 1fr); }
+  .speed-sign-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .speed-moderate, .speed-physics, .speed-recall { grid-template-columns: minmax(0, 1fr); }
   .speed-preview { flex-wrap: wrap; gap: 12px 20px; }
 }
 
@@ -649,16 +751,21 @@ body[data-route="speed-limits"] .main-content:focus { outline: none; }
   .speed-header h1 { font-size: clamp(37px, 9vw, 58px); }
   .speed-header p { font-size: 12px; }
   .speed-print { margin: 0; font-size: 11px; }
+  .speed-chapters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; margin-bottom: 18px; scrollbar-width: thin; }
+  .speed-chapters button { flex: none; font-size: 11px; }
   .speed-map { padding: 20px 16px; border-radius: 20px; }
-  .speed-vehicle-switch { width: 100%; }
-  .speed-vehicle-switch button { flex: 1; padding-inline: 7px; font-size: 11px; }
+  .speed-garage { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .speed-garage-chip { min-height: 70px; padding: 8px 4px; font-size: 10px; }
+  .speed-vehicle-icon { width: 46px; height: 26px; }
   .speed-controls { column-gap: 10px; }
   .speed-trailer, .speed-cover { font-size: 11px; }
+  .speed-scope { flex-basis: 100%; order: 3; }
   .speed-cover { margin-left: auto; }
   .speed-road-grid { gap: 9px; }
   .speed-road-card { padding: 12px 9px 15px; }
   .speed-road-picture { width: 90px; height: 72px; margin-bottom: 9px; }
-  .speed-sign { width: 86px; font-size: 34px; border-width: 6px; }
+  .speed-sign, .speed-barred-badge { width: 86px; font-size: 34px; border-width: 6px; }
+  .speed-barred-badge { font-size: 9px; }
   .speed-sign-small { width: 54px; font-size: 24px; border-width: 5px; }
   .speed-road-card h3 { font-size: 12px; }
   .speed-road-card p { font-size: 9px; }
@@ -668,8 +775,19 @@ body[data-route="speed-limits"] .main-content:focus { outline: none; }
   .speed-shared { flex-wrap: wrap; gap: 12px; }
   .speed-shared > div { flex: 1; }
   .speed-shared-tag { max-width: none; margin-left: 66px; }
+  .speed-rung { grid-template-columns: 48px 1fr; gap: 4px 10px; }
+  .speed-rung-value { height: 38px; font-size: 18px; }
+  .speed-rung-member { font-size: 10px; }
+  .speed-sign-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .speed-sign-art { width: 72px; height: 72px; }
+  .speed-places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .speed-place { padding: 14px 12px 12px; font-size: 10px; }
+  .speed-flash-round { padding: 18px 14px; }
   .speed-traps { grid-template-columns: minmax(0, 1fr); }
   .speed-trap { padding: 20px; }
+  .speed-exceptions { grid-template-columns: minmax(0, 1fr); }
+  .speed-physics-lab { padding: 18px 14px; }
+  .speed-bar { grid-template-columns: 96px 1fr 52px; gap: 8px; font-size: 10px; }
   .speed-recall { padding: 20px 16px; gap: 20px; }
   .speed-drill { padding: 18px 14px; }
   .speed-drill h3 { font-size: 15px; }
@@ -681,9 +799,8 @@ body[data-route="speed-limits"] .main-content:focus { outline: none; }
   body[data-route="speed-limits"] { color-scheme: light; background: white; color: #17261f; }
   body[data-route="speed-limits"] .sidebar, body[data-route="speed-limits"] .mobile-nav,
   body[data-route="speed-limits"] .modal-backdrop, body[data-route="speed-limits"] .toast,
-  body[data-route="speed-limits"] .speed-print, body[data-route="speed-limits"] .speed-map,
-  body[data-route="speed-limits"] .speed-section-heading, body[data-route="speed-limits"] .speed-traps,
-  body[data-route="speed-limits"] .speed-recall { display: none !important; }
+  body[data-route="speed-limits"] .speed-print,
+  body[data-route="speed-limits"] .speed-page > :not(.speed-header, .speed-print-sheet, .speed-sources) { display: none !important; }
   body[data-route="speed-limits"] .main-content { margin: 0; min-height: 0; padding: 0; }
   .speed-page { animation: none; max-width: none; display: flex; flex-direction: column; }
   .speed-header { margin-bottom: 16px; }
@@ -691,11 +808,12 @@ body[data-route="speed-limits"] .main-content:focus { outline: none; }
   .speed-header p, .speed-sources p { color: #47534c; }
   .speed-print-sheet { display: block; order: 1; font-size: 12px; }
   .speed-print-sheet h2 { font: 500 22px/1.2 Georgia, serif; }
-  .speed-print-sheet table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .speed-print-sheet caption { text-align: left; margin: 12px 0; color: #47534c; }
-  .speed-print-sheet th, .speed-print-sheet td { padding: 14px 9px; text-align: left; border: 1px solid #ccc; }
-  .speed-print-sheet td { text-align: center; font-size: 20px; font-weight: 750; }
-  .speed-print-sheet p { margin: 18px 0; line-height: 1.8; }
+  .speed-print-sheet .speed-table { min-width: 0; font-size: 10px; }
+  .speed-print-sheet .speed-table caption { padding: 10px 0; color: #47534c; }
+  .speed-print-sheet .speed-table th, .speed-print-sheet .speed-table td { padding: 7px 6px; border: 1px solid #ccc; }
+  .speed-print-sheet .speed-table td b { font-size: 15px; }
+  .speed-print-sheet p { margin: 14px 0; line-height: 1.7; }
+  .speed-print-sheet ul { margin: 0; padding-left: 18px; font-size: 11px; line-height: 1.7; break-inside: avoid; }
   .speed-sources { order: 2; break-inside: avoid; margin-top: 16px; }
   .speed-sources .text-link, .speed-step, .speed-header .eyebrow { color: #245e46; }
 }
