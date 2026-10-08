@@ -4,6 +4,8 @@ RoadReady is a static study app for Portugal's Category B driving theory exam. I
 
 Read [README.md](README.md) for user-facing behavior and setup. Read [documentation/md/PROJECT.md](documentation/md/PROJECT.md) when changing quiz behavior, study data, translations or sync. That reference explains the current implementation and its verification limits.
 
+Open findings from the 7–8 October 2026 manual pass are in [documentation/md/QA-HANDOFF.md](documentation/md/QA-HANDOFF.md), with reproduction steps, acceptance checks and a link to the full report. Check their status before treating an old finding as unresolved.
+
 ## Working conventions
 
 - Check Git status first and preserve unrelated changes and local QA evidence.
