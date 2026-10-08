@@ -89,7 +89,7 @@ for (const mode of ["quick", "exam"]) {
   assert.equal(app.run("session"), null);
   assert.equal(app.run("getStats().todayAnswered"), mode === "quick" ? 2 : 0);
   if (mode === "quick") {
-    assert.ok(app.node("#mainContent").innerHTML.includes("2 answers today"));
+    assert.ok(app.node("#mainContent").innerHTML.includes("Answers today: 2"));
     const reloaded = harness(app.storage.get("roadready-profile"));
     assert.equal(reloaded.run("getStats().todayAnswered"), 2, "Abandoned practice answers must still count after reload");
   }
