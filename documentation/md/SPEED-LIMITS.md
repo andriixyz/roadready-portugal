@@ -26,6 +26,10 @@ Article 28 permits special signed limits, including limits above or below the ge
 
 Article 27(6) sets a motorway minimum of **50 km/h**. The page qualifies this as normal circulation because articles 24–25 require speed adapted to traffic, danger, visibility and conditions. Article 72 separately excludes vehicles incapable of exceeding **60 km/h** on level ground or with a fixed maximum at or below 60, along with other prohibited classes. Do not present 60 as the normal motorway minimum or apply the general 50 minimum to every reserved road.
 
+## Exam coverage
+
+[SPEED-LIMITS-EXAM-GAPS.md](SPEED-LIMITS-EXAM-GAPS.md) maps corpus speed questions to this page and lists uncovered themes with question IDs.
+
 ## Maintenance and verification
 
 Update legal values, examples and drill answer explanations together in `speed-limits.js` and both `i18n.js` dictionaries. Keep legal Portuguese road labels intact. Check the current official consolidation and linked table before advancing the checked date. Refresh asset version references in `index.html` and the module imports in `app.js`.
