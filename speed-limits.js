@@ -227,7 +227,9 @@ export function renderSpeedLimits(root, { t, escapeHtml, onPractice }, focusSele
   const chapters = [["numbers", "speedNumbers"], ["signs", "speedSigns"], ["moderate", "speedModerate"], ["limits", "speedLimits"], ["physics", "speedPhysics"], ["recall", "speedRecallTitle"]];
   const stopping = stoppingDistances(state.speed, state.wet);
 
-  root.innerHTML = `<div class="page speed-page">
+  // Re-rendering in place (clicks, language or sync) must not replay the page entry animation.
+  const settled = Boolean(root.querySelector(".speed-page"));
+  root.innerHTML = `<div class="page speed-page${settled ? " is-settled" : ""}">
     <header class="speed-header"><div><span class="eyebrow">${t("speed.eyebrow")}</span><h1>${t("speed.title")}</h1><p>${t("speed.subtitle")}</p></div><button class="button button-ghost speed-print" type="button" data-speed-print><span aria-hidden="true">↓</span> ${t("speed.print")}</button></header>
     <nav class="speed-chapters" aria-label="${escapeHtml(t("speed.chaptersLabel"))}">${chapters.map(([id, target], index) => `<button type="button" data-speed-jump="${target}"><b>0${index + 1}</b>${t(`speed.chapter.${id}`)}</button>`).join("")}</nav>
 

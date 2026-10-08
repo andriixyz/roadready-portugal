@@ -326,6 +326,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .plan-edit:focus-visible, .plan-roadmap summary:focus-visible, .topic-practice:focus-visible, .task-card button:focus-visible, .exam-plan-fields input:focus-visible, .exam-plan-fields select:focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; }
 
 .question-page { max-width: 1040px; animation: none; }
+.speed-page.is-settled { animation: none; }
 .quiz-topbar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; margin-bottom: 22px; }
 .icon-button { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font-size: 20px; }
 .quiz-progress { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; }
