@@ -1,19 +1,21 @@
 # Manual QA handoff
 
-Last verified: **7–8 October 2026**, application baseline `b34d6e1`. All four findings below are **open**; this handoff documents testing and does not implement fixes. Read the [full manual report](MANUAL-QA-2026-10-08.md) for completed checks, observations and verification limits.
+Original manual pass: **7–8 October 2026**, application baseline `b34d6e1`. **QA-001 is done**, verified on 8 October; QA-002, QA-003 and QA-004 remain open. Read the [full manual report](MANUAL-QA-2026-10-08.md) for the historical observations and verification limits.
 
 Use synthetic progress on a separate HTTP origin with Supabase disabled or local RPC mocks, as required by [AGENTS.md](../../AGENTS.md). Never reproduce import, pairing or reset cases against the user's real profile. The source locations describe the tested baseline; follow the named functions and translation keys if line numbers change.
 
 | ID | Priority | Status | Finding | Main source |
 | --- | --- | --- | --- | --- |
-| [QA-001](#qa-001) | P2 | Open | Russian results clip at 320 pixels | [styles.css](../../styles.css) |
+| [QA-001](#qa-001) | P2 | Done | Russian results clip at 320 pixels | [styles.css](../../styles.css) |
 | [QA-002](#qa-002) | P2 | Open | Failed Russian overlay replaces an available full bank with samples | [app.js](../../app.js) |
 | [QA-003](#qa-003) | P3 | Open | Dashboard counters use incorrect singular forms | [i18n.js](../../i18n.js), [app.js](../../app.js) |
 | [QA-004](#qa-004) | P3 | Open | An expired exam target retains the Exam day phase | [exam-plan.js](../../exam-plan.js), [i18n.js](../../i18n.js) |
 
 ## QA-001
 
-**Russian results overflow at 320 pixels.** The time statistic and rightmost action are clipped, and a horizontal scrollbar appears. Source: `.result-stats`, `.result-actions` and narrow `.result-card` rules in `styles.css` (tested lines 418, 423 and 762).
+**Done — 8 October 2026.** Fixing commit: [`0328a70`](https://github.com/andriixyz/roadready-portugal/commit/0328a70721012c8e9f26130ac3816c177034f9bc).
+
+**Original finding: Russian results overflow at 320 pixels.** The time statistic and rightmost action are clipped, and a horizontal scrollbar appears. Source: `.result-stats`, `.result-actions` and narrow `.result-card` rules in `styles.css` (tested lines 418, 423 and 762).
 
 Reproduce by selecting Russian UI, completing a 30-question mock and opening results in a real 320-pixel browsing context. The original pass used an iframe because the browser viewport override did not change `innerWidth`. Measured content width was 305 pixels and scroll width 323; the stats/actions were 239 pixels wide but required 290/288 pixels. Do not infer responsive coverage from a nominal viewport setting alone.
 
@@ -21,11 +23,17 @@ Evidence: [clipped result](../qa/2026-10-08/mobile-result-preview.jpg).
 
 Acceptance checks:
 
-- [ ] At 320 and 375 pixels, EN/RU result statistics and every action are visible and usable without horizontal scrolling, including long Russian duration labels.
-- [ ] Desktop layout, result-heading focus and submission scroll behavior remain correct.
-- [ ] Scores, errors, elapsed time and result rerenders remain unchanged.
+- [x] At 320 and 375 pixels, EN/RU result statistics and every action are visible and usable without horizontal scrolling, including long Russian duration labels.
+- [x] Desktop layout, result-heading focus and submission scroll behavior remain correct.
+- [x] Scores, errors, elapsed time and result rerenders remain unchanged.
 
-Validation: manual desktop/narrow EN/RU results and keyboard checks; `rtk npm run check:quiz`. Apply the release checks in AGENTS.md if changing served assets.
+Resolution: statistics use shrinkable grid tracks and wrapping text. At phone widths (720 pixels or less), accuracy/errors share a row, duration takes a full row, and actions stack at full width. Desktop keeps its three statistics and horizontal actions, with wrapping available when needed. The stylesheet cache version was advanced.
+
+Validation: reproduced the baseline overflow, then completed eight Chromium cases at actual `innerWidth` values of 320, 375, 720 and 1280 pixels in EN/RU. Each case submitted a 30-question mock scoring 25/30 (83%, five errors), with a clock advanced to a 1,234-minute duration. At 320/375 pixels the content's client and scroll widths agreed (305/305 and 360/360 with vertical scrollbars); every statistic and all three actions fit. Keyboard answers/navigation, heading focus, submission scroll, action tab order and activation, Settings focus trapping/restoration, and language rerenders passed. Rerenders preserved scores/time, one session and exactly 30 recorded attempts. All eight release commands (`check`, `check:content`, `check:verification`, `check:sync`, `check:capture`, `check:quiz`, `check:study`, `check:backup`) and `build` passed; the build reused all 3,910 images with zero downloads. Git whitespace checks passed.
+
+Fixed-layout evidence: [Russian 320-pixel results](../qa/2026-10-08/qa-001-fixed-ru-320.png), [Russian desktop results](../qa/2026-10-08/qa-001-fixed-ru-desktop.png). Local QA script and measurements are under ignored `tmp/qa-001/` when present.
+
+Limits: responsive Chromium checks used synthetic profiles on a separate origin with Supabase disabled and made zero external requests. These are not physical-phone or live sync tests. Mobile navigation remains hidden on the quiz/results route, so narrow Settings checks opened the existing desktop control before resizing; focus restoration was checked with that control visible. The dated manual report remains unchanged.
 
 ## QA-002
 
