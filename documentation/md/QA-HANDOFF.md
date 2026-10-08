@@ -1,6 +1,6 @@
 # Manual QA handoff
 
-Original manual pass: **7–8 October 2026**, application baseline `b34d6e1`. **QA-001, QA-002 and QA-003 are done**, verified on 8 October; QA-004 remains open. Read the [full manual report](MANUAL-QA-2026-10-08.md) for the historical observations and verification limits.
+Original manual pass: **7–8 October 2026**, application baseline `b34d6e1`. **All four findings, QA-001 through QA-004, are done**, verified on 8 October. Read the [full manual report](MANUAL-QA-2026-10-08.md) for the historical observations and verification limits.
 
 Use synthetic progress on a separate HTTP origin with Supabase disabled or local RPC mocks, as required by [AGENTS.md](../../AGENTS.md). Never reproduce import, pairing or reset cases against the user's real profile. The source locations describe the tested baseline; follow the named functions and translation keys if line numbers change.
 
@@ -9,7 +9,7 @@ Use synthetic progress on a separate HTTP origin with Supabase disabled or local
 | [QA-001](#qa-001) | P2 | Done | Russian results clip at 320 pixels | [styles.css](../../styles.css) |
 | [QA-002](#qa-002) | P2 | Done | Failed Russian overlay replaces an available full bank with samples | [app.js](../../app.js) |
 | [QA-003](#qa-003) | P3 | Done | Dashboard counters use incorrect singular forms | [i18n.js](../../i18n.js), [app.js](../../app.js) |
-| [QA-004](#qa-004) | P3 | Open | An expired exam target retains the Exam day phase | [exam-plan.js](../../exam-plan.js), [i18n.js](../../i18n.js) |
+| [QA-004](#qa-004) | P3 | Done | An expired exam target retains the Exam day phase | [exam-plan.js](../../exam-plan.js), [i18n.js](../../i18n.js) |
 
 ## QA-001
 
@@ -87,7 +87,9 @@ Limits: responsive Chromium checks used synthetic profiles on a separate origin 
 
 ## QA-004
 
-**A past exam target still uses the Exam day phase.** `getExamPlan()` maps all `daysLeft <= 0` to `exam` (`exam-plan.js`, tested line 82). The dashboard heading correctly asks to update the date, but the phase remains `DAY 20 OF 20 · EXAM DAY`.
+**Done — 8 October 2026.** Fixing commit: [`5584940`](https://github.com/andriixyz/roadready-portugal/commit/5584940311ecc959d008e7ef0fb49e44ebb997d0).
+
+**Original finding: a past exam target still uses the Exam day phase.** `getExamPlan()` maps all `daysLeft <= 0` to `exam` (`exam-plan.js`, tested line 82). The dashboard heading correctly asks to update the date, but the phase remains `DAY 20 OF 20 · EXAM DAY`.
 
 Reproduce by setting an isolated profile's target to yesterday and opening Dashboard. The recorded case used a 6 October target on 7 October. Compare with a target of today, where Exam day is appropriate, and tomorrow, where Final review is appropriate. Relevant translations include `plan.phase.exam` and `plan.datePassed` in EN/RU.
 
@@ -95,12 +97,20 @@ Evidence: [expired target](../qa/2026-10-08/expired-plan.jpg).
 
 Acceptance checks:
 
-- [ ] A past target consistently prompts date revision and does not label that day as the exam day.
-- [ ] Today's target retains Exam day; tomorrow retains Final review; later phases keep their current behavior.
-- [ ] Expired-date daily targets remain zero and EN/RU wording agrees across the heading, phase and roadmap.
-- [ ] Date comparisons retain local-calendar semantics, including the Europe/Lisbon daylight-saving boundary.
+- [x] A past target consistently prompts date revision and does not label that day as the exam day.
+- [x] Today's target retains Exam day; tomorrow retains Final review; later phases keep their current behavior.
+- [x] Expired-date daily targets remain zero and EN/RU wording agrees across the heading, phase and roadmap.
+- [x] Date comparisons retain local-calendar semantics, including the Europe/Lisbon daylight-saving boundary.
 
-Validation: manual yesterday/today/tomorrow/later EN/RU dashboard checks; `rtk npm run check`, `rtk npm run check:study` and the existing study check under `TZ=Europe/Lisbon`.
+Resolution: past dates use an `expired` phase with EN/RU date-revision guidance in the dashboard and roadmap. The expired roadmap provides an Edit exam target control that opens Settings at the date field. Scheduled new, review, repair and mock targets, and the remaining-time estimate, are zero. Outstanding mistakes remain in preparation evidence; extra practice and saved progress remain available. Today's Exam day, tomorrow's Final review and later phases retain their behavior. Served module cache versions were advanced.
+
+Validation: 42 Chromium cases covered EN/RU at actual 320, 375 and 1280 pixels, comparing yesterday, today, tomorrow and later targets. Additional 375-pixel cases checked both sides of the 25 October Europe/Lisbon daylight-saving change. Dashboard and roadmap wording, zero expired targets/time, unchanged outstanding-mistake evidence, and layout without horizontal scrolling passed. The roadmap's date-update action, Settings focus trapping/restoration, saving a future date and reload persistence passed while preserving question progress, activity and historical sessions. Pure study checks now cover every phase, zero expired work, retained preparation evidence and local-calendar DST comparisons.
+
+All eight release checks (`check`, `check:content`, `check:verification`, `check:sync`, `check:capture`, `check:quiz`, `check:study`, `check:backup`), an additional `check:study` under `TZ=Europe/Lisbon`, and `build` passed on a clean candidate containing only this fix. The build reused all 3,910 images with zero downloads. Git whitespace checks passed.
+
+Fixed-state evidence: [Russian 320-pixel dashboard](../qa/2026-10-08/qa-004-fixed-ru-320.png), [English desktop roadmap](../qa/2026-10-08/qa-004-fixed-roadmap-desktop.png). Local scripts and measurements are under ignored `tmp/qa-004/` when present.
+
+Limits: responsive Chromium checks used synthetic profiles on a separate origin with Supabase disabled and made zero external requests. Physical phones and live sync were not tested. The dated manual report remains unchanged.
 
 ## Closing a finding
 
