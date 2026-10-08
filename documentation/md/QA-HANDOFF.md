@@ -1,6 +1,6 @@
 # Manual QA handoff
 
-Original manual pass: **7–8 October 2026**, application baseline `b34d6e1`. **QA-001 and QA-002 are done**, verified on 8 October; QA-003 and QA-004 remain open. Read the [full manual report](MANUAL-QA-2026-10-08.md) for the historical observations and verification limits.
+Original manual pass: **7–8 October 2026**, application baseline `b34d6e1`. **QA-001, QA-002 and QA-003 are done**, verified on 8 October; QA-004 remains open. Read the [full manual report](MANUAL-QA-2026-10-08.md) for the historical observations and verification limits.
 
 Use synthetic progress on a separate HTTP origin with Supabase disabled or local RPC mocks, as required by [AGENTS.md](../../AGENTS.md). Never reproduce import, pairing or reset cases against the user's real profile. The source locations describe the tested baseline; follow the named functions and translation keys if line numbers change.
 
@@ -8,7 +8,7 @@ Use synthetic progress on a separate HTTP origin with Supabase disabled or local
 | --- | --- | --- | --- | --- |
 | [QA-001](#qa-001) | P2 | Done | Russian results clip at 320 pixels | [styles.css](../../styles.css) |
 | [QA-002](#qa-002) | P2 | Done | Failed Russian overlay replaces an available full bank with samples | [app.js](../../app.js) |
-| [QA-003](#qa-003) | P3 | Open | Dashboard counters use incorrect singular forms | [i18n.js](../../i18n.js), [app.js](../../app.js) |
+| [QA-003](#qa-003) | P3 | Done | Dashboard counters use incorrect singular forms | [i18n.js](../../i18n.js), [app.js](../../app.js) |
 | [QA-004](#qa-004) | P3 | Open | An expired exam target retains the Exam day phase | [exam-plan.js](../../exam-plan.js), [i18n.js](../../i18n.js) |
 
 ## QA-001
@@ -65,17 +65,25 @@ Limits: browser checks used synthetic profiles on a separate origin with Supabas
 
 ## QA-003
 
-**Singular dashboard counters have incorrect grammar.** With one checked answer today, English shows `1 answers today`; with exactly one latest mistake, it shows `1 questions still have a wrong latest answer`. Russian shows `Последний ответ ещё неверный в 1 вопросах`. The numeric values were correct.
+**Done — 8 October 2026.** Fixing commit: [`851a7ed`](https://github.com/andriixyz/roadready-portugal/commit/851a7edca9dd6b03c360428d036ffb35e5f8637c).
+
+**Original finding: singular dashboard counters have incorrect grammar.** With one checked answer today, English shows `1 answers today`; with exactly one latest mistake, it shows `1 questions still have a wrong latest answer`. Russian shows `Последний ответ ещё неверный в 1 вопросах`. The numeric values were correct.
 
 Reproduce using a synthetic profile with exactly one answer on the device's current local date and one latest incorrect answer. Open Dashboard in EN and RU. Relevant keys are `plan.answersToday` and `plan.mistakeEvidence` in both dictionaries (`i18n.js`, EN tested lines 138/172), plus the dashboard interpolation in `app.js`.
 
 Acceptance checks:
 
-- [ ] EN/RU wording is grammatical for 0, 1, 2, 5, 11 and 21; use existing locale helpers or wording that does not require noun inflection.
-- [ ] Counts, repair-queue membership and local-calendar activity remain unchanged.
-- [ ] Translation keys exist in both dictionaries and render correctly in the narrow dashboard.
+- [x] EN/RU wording is grammatical for 0, 1, 2, 5, 11 and 21; use existing locale helpers or wording that does not require noun inflection.
+- [x] Counts, repair-queue membership and local-calendar activity remain unchanged.
+- [x] Translation keys exist in both dictionaries and render correctly in the narrow dashboard.
 
-Validation: manual EN/RU dashboard checks; `rtk npm run check` and `rtk npm run check:study`.
+Resolution: use labels followed by the count: `Answers today: {count}`, `Questions with a wrong latest answer: {count}`, and `Вопросы с неверным последним ответом: {count}`. The existing Russian `Ответов сегодня: {count}` was already grammatical. Count interpolation and calculation are unchanged. The existing study-flow wording assertion and served module cache versions were updated.
+
+Validation: 36 Chromium dashboard cases covered EN/RU counts 0, 1, 2, 5, 11 and 21 at actual 320, 375 and 1280 pixels. Both labels rendered correctly without clipping or horizontal scrolling. Synthetic profiles used 00:30 on 8 October in Europe/Lisbon (still 7 October in UTC), with seven answers on the previous local day; today's displayed count agreed with the local-day activity. Rendering and language rerenders preserved saved activity/progress. For each language/width, a question with three correct historical attempts and one latest wrong answer remained in the repair queue; a keyboard-selected correct answer removed it and incremented today's activity from one to two. Settings focus trapping/restoration passed. All eight release checks and `build` passed, reusing all 3,910 images with zero downloads; Git whitespace checks passed.
+
+Fixed-wording evidence at 320 pixels: [English answer count](../qa/2026-10-08/qa-003-fixed-answers-en-320.png), [Russian mistake count](../qa/2026-10-08/qa-003-fixed-mistakes-ru-320.png). Local browser script and measurements are under ignored `tmp/qa-003/` when present.
+
+Limits: responsive Chromium checks used synthetic profiles on a separate origin with Supabase disabled and made zero external requests. Physical phones and live sync were not tested. The dated manual report remains unchanged.
 
 ## QA-004
 
