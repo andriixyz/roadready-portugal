@@ -1,13 +1,13 @@
 # Manual QA handoff
 
-Original manual pass: **7–8 October 2026**, application baseline `b34d6e1`. **QA-001 is done**, verified on 8 October; QA-002, QA-003 and QA-004 remain open. Read the [full manual report](MANUAL-QA-2026-10-08.md) for the historical observations and verification limits.
+Original manual pass: **7–8 October 2026**, application baseline `b34d6e1`. **QA-001 and QA-002 are done**, verified on 8 October; QA-003 and QA-004 remain open. Read the [full manual report](MANUAL-QA-2026-10-08.md) for the historical observations and verification limits.
 
 Use synthetic progress on a separate HTTP origin with Supabase disabled or local RPC mocks, as required by [AGENTS.md](../../AGENTS.md). Never reproduce import, pairing or reset cases against the user's real profile. The source locations describe the tested baseline; follow the named functions and translation keys if line numbers change.
 
 | ID | Priority | Status | Finding | Main source |
 | --- | --- | --- | --- | --- |
 | [QA-001](#qa-001) | P2 | Done | Russian results clip at 320 pixels | [styles.css](../../styles.css) |
-| [QA-002](#qa-002) | P2 | Open | Failed Russian overlay replaces an available full bank with samples | [app.js](../../app.js) |
+| [QA-002](#qa-002) | P2 | Done | Failed Russian overlay replaces an available full bank with samples | [app.js](../../app.js) |
 | [QA-003](#qa-003) | P3 | Open | Dashboard counters use incorrect singular forms | [i18n.js](../../i18n.js), [app.js](../../app.js) |
 | [QA-004](#qa-004) | P3 | Open | An expired exam target retains the Exam day phase | [exam-plan.js](../../exam-plan.js), [i18n.js](../../i18n.js) |
 
@@ -37,7 +37,9 @@ Limits: responsive Chromium checks used synthetic profiles on a separate origin 
 
 ## QA-002
 
-**An unavailable Russian overlay discards a successful full-bank startup load.** With saved `uiLanguage` or question `language` set to `ru`, `loadCorpus()` awaits `ensureRussianCorpus()` inside each EN/PT corpus attempt (`app.js`, tested lines 211–227). An overlay exception falls through both available corpora to the six built-in samples.
+**Done — 8 October 2026.** Fixing commit: [`1d8a754`](https://github.com/andriixyz/roadready-portugal/commit/1d8a754473a90db590890998617d5ed67cd91b26).
+
+**Original finding: an unavailable Russian overlay discards a successful full-bank startup load.** With saved `uiLanguage` or question `language` set to `ru`, `loadCorpus()` awaits `ensureRussianCorpus()` inside each EN/PT corpus attempt (`app.js`, tested lines 211–227). An overlay exception falls through both available corpora to the six built-in samples.
 
 Reproduce in an isolated app copy with some saved bank progress and Russian preferences. Keep the EN/PT corpora available, make the Russian overlay request fail, and reload. The manual pass injected HTTP 503; making that file unavailable in the temporary copy also exercises the failed fetch. Observed: six samples, zero displayed seen questions/attempts, and one retained session. Restore the overlay and reload: the existing two seen questions and six attempts return without importing anything. This is a loading/display failure; the pass did not observe erased storage.
 
@@ -45,13 +47,21 @@ Evidence: [failed startup](../qa/2026-10-08/ru-startup-falls-to-samples.png), [f
 
 Acceptance checks:
 
-- [ ] Overlay failure with an available EN/PT corpus keeps the full bank and existing progress usable, with a clear translation-unavailable message or disclosed fallback.
-- [ ] Test saved Russian UI and saved Russian question language independently.
-- [ ] Retrying after the overlay becomes available restores Russian wording without resetting progress.
-- [ ] Russian overlay hash/order validation still applies; genuine failure of both base corpora still uses clearly labelled samples.
-- [ ] A failed Russian backup import remains atomic, and a failed mid-session Russian switch keeps the existing language, checked answer and feedback.
+- [x] Overlay failure with an available EN/PT corpus keeps the full bank and existing progress usable, with a clear translation-unavailable message or disclosed fallback.
+- [x] Test saved Russian UI and saved Russian question language independently.
+- [x] Retrying after the overlay becomes available restores Russian wording without resetting progress.
+- [x] Russian overlay hash/order validation still applies; genuine failure of both base corpora still uses clearly labelled samples.
+- [x] A failed Russian backup import remains atomic, and a failed mid-session Russian switch keeps the existing language, checked answer and feedback.
 
-Validation: manual startup/failure/recovery and active-session checks; `rtk npm run check`, `rtk npm run check:content`, `rtk npm run check:backup`, `rtk npm run check:quiz` and `rtk npm run check:study`.
+Resolution: base-bank loading finishes before the optional Russian overlay is attempted. Overlay failure retains the bank and loads its source-comparison audit, with a persistent EN/RU notice on study pages. A new set requesting unavailable Russian uses the available English or Portuguese wording while preserving saved preferences. Selecting Russian again retries without resetting progress; a failed explicit switch within a checked question keeps its existing language/answer/feedback. Overlay fields are validated together before any question is modified.
+
+Validation: twelve Chromium cases at actual 320, 375 and 1280 pixels crossed EN/PT base-bank availability with independently saved Russian UI and Russian question preferences. Injected HTTP 503 failures retained all 3,910 questions, two previously seen questions, six previous attempts and one historical session. EN/PT practice, source-comparison rendering, rejected Russian imports, checked feedback/navigation, Settings keyboard focus, same-session retry and reload recovery passed without horizontal scrolling or browser exceptions. Two additional EN/RU cases verified labelled six-question samples when both base banks failed. An active mock retained its checked pick and 01:01 elapsed time after failed question/UI Russian switches; successful recovery translated it, and the timer continued to 02:01.
+
+Regression checks were added to `check:backup` and `check:quiz` for startup/retry, preserved progress, atomic overlay rejection, keyed answer ordering, base-language sessions and failed checked-session switches. Runtime validation covers overlay IDs/fields/unique answer keys without changing base question/choice order; the existing offline `check` still verifies the exact EN source SHA-256 and completeness metadata. All eight release checks and `build` passed, with all 3,910 images reused and zero downloads. Git whitespace checks passed.
+
+Fixed-failure evidence: [Russian UI at 320 pixels](../qa/2026-10-08/qa-002-fixed-ru-320.png), [English UI with saved Russian question preference](../qa/2026-10-08/qa-002-fixed-en-desktop.png). Local scripts and measurements are under ignored `tmp/qa-002/` when present.
+
+Limits: browser checks used synthetic profiles on a separate origin with Supabase disabled and made zero external requests. These are responsive Chromium and mocked failure tests, not physical-phone or live Supabase tests. Narrow Settings checks opened the desktop control before resizing while a quiz was active, then restored focus with that control visible. The dated manual report remains unchanged.
 
 ## QA-003
 
