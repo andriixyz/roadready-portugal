@@ -1,11 +1,11 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261007-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261008-3";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261008-4";
 import { createQuizSession, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261007-3";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261007-1";
 import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
 import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "./question-verification.js?v=20261002-1";
-import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions } from "./exam-plan.js?v=20261007-3";
+import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions } from "./exam-plan.js?v=20261008-1";
 import { renderSpeedLimits } from "./speed-limits.js?v=20261008-2";
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -303,6 +303,9 @@ function readinessMarkup(plan) {
 }
 
 function planScheduleMarkup(plan) {
+  if (plan.phase === "expired") {
+    return `<section class="study-plan"><article class="plan-row is-current"><span class="plan-day">${planDate(plan.config.examDate)}</span><div><h3>${t("plan.datePassed")}</h3><p>${t("plan.description.expired")}</p><button class="button button-ghost" data-edit-plan>${t("plan.edit")}</button></div></article></section>`;
+  }
   const shift = (offset) => {
     const date = new Date(`${plan.config.examDate}T12:00:00`);
     date.setDate(date.getDate() + offset);
@@ -362,7 +365,7 @@ function renderDashboard() {
       <section class="hero-grid">
         <article class="card route-card">
           <div>
-            <span class="eyebrow">${t("plan.day", { day: formatNumber(plan.day), total: formatNumber(plan.totalDays) })} · ${t(`plan.phase.${plan.phase}`)}</span>
+            <span class="eyebrow">${plan.phase === "expired" ? t("plan.phase.expired") : `${t("plan.day", { day: formatNumber(plan.day), total: formatNumber(plan.totalDays) })} · ${t(`plan.phase.${plan.phase}`)}`}</span>
             <h2>${plan.daysLeft > 0 ? t("plan.daysLeft", { count: formatDayCount(plan.daysLeft) }) : t(plan.daysLeft === 0 ? "plan.examToday" : "plan.datePassed")}</h2>
             <p>${t(`plan.description.${plan.phase}`)}</p>
             ${plan.unseen && plan.phase !== "cover" && plan.daysLeft > 0 ? `<p class="plan-warning">${t("plan.catchUp", { count: formatQuestionCount(plan.unseen) })}</p>` : ""}

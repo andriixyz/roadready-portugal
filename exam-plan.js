@@ -79,7 +79,7 @@ export function getExamPlan(questions, profile, config, today = new Date(), samp
   const daysLeft = Math.round(dayNumber(config.examDate) - dayNumber(day));
   const totalDays = Math.round(dayNumber(config.examDate) - dayNumber(config.startedOn));
   const finalDays = Math.min(4, Math.max(1, Math.floor(totalDays / 4)));
-  const phase = daysLeft <= 0 ? "exam" : daysLeft === 1 ? "light" : daysLeft <= finalDays ? "rehearse" : "cover";
+  const phase = daysLeft < 0 ? "expired" : daysLeft === 0 ? "exam" : daysLeft === 1 ? "light" : daysLeft <= finalDays ? "rehearse" : "cover";
   const readiness = examReadiness(questions, profile, config.language, today, sample);
   const unseen = questions.length - readiness.seen;
   const newToday = questions.filter((question) => {
@@ -97,16 +97,17 @@ export function getExamPlan(questions, profile, config, today = new Date(), samp
   const newTarget = daysLeft > 0 ? Math.ceil((unseen + newToday) / coverageDays) : 0;
   const reviewTarget = daysLeft > 0 ? Math.min(due + reviewToday, phase === "light" ? 20 : Math.max(40, Math.ceil(newTarget * .4))) : 0;
   const mockTarget = phase === "cover" ? 1 : phase === "rehearse" ? 2 : 0;
+  const repairTarget = phase === "expired" ? 0 : readiness.unresolved;
   const mocksToday = recentMocks(profile, config.language, today)
     .filter((mock) => studyDay(new Date(mock.completedAt)) === day).length;
   const tasks = [
     { key: "new", mode: "learn", done: newToday, target: newTarget, met: newToday >= newTarget },
     { key: "review", mode: "review", done: reviewToday, target: reviewTarget, met: reviewToday >= reviewTarget },
-    { key: "repair", mode: "repair", done: 0, target: readiness.unresolved, met: readiness.unresolved === 0 },
+    { key: "repair", mode: "repair", done: 0, target: repairTarget, met: repairTarget === 0 },
     { key: "mock", mode: "exam", done: mocksToday, target: mockTarget, met: mocksToday >= mockTarget },
   ];
   const studyMinutes = Math.ceil(Math.max(0, newTarget - newToday) * .7
-    + Math.max(0, reviewTarget - reviewToday) * .5 + readiness.unresolved * .7
+    + Math.max(0, reviewTarget - reviewToday) * .5 + repairTarget * .7
     + Math.max(0, mockTarget - mocksToday) * 30);
   return { config, daysLeft, totalDays, finalDays, phase, readiness, unseen, due, newToday, newTarget,
     reviewToday, reviewTarget, mockTarget, mocksToday, tasks, studyMinutes,

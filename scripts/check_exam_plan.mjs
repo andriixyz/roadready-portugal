@@ -38,10 +38,29 @@ assert.equal(getExamPlan(bank, empty(), config, new Date(2026, 9, 23, 12)).mockT
 assert.equal(getExamPlan(bank, empty(), config, new Date(2026, 9, 26, 12)).mockTarget, 0);
 assert.equal(getExamPlan(bank, empty(), config, new Date(2026, 9, 27, 12)).newTarget, 0);
 assert.equal(getExamPlan(bank, empty(), config, new Date(2026, 9, 28, 12)).daysLeft, -1, "An expired date must not roll forward");
+for (const [day, phase] of [[28, "expired"], [27, "exam"], [26, "light"], [25, "rehearse"], [20, "cover"]]) {
+  assert.equal(getExamPlan(bank, empty(), config, new Date(2026, 9, day, 12)).phase, phase);
+}
+const staleProfile = { ...empty(), questionProgress: { [bank[0].id]: progress(false) },
+  answerActivity: { "2026-10-28": { mac: 7 } } };
+const staleSnapshot = JSON.stringify(staleProfile);
+const expired = getExamPlan(bank, staleProfile, config, new Date(2026, 9, 28, 12));
+assert.equal(expired.phase, "expired");
+assert.ok(expired.tasks.every(task => task.target === 0), "Expired targets must not assign daily work");
+assert.equal(expired.studyMinutes, 0);
+assert.equal(expired.readiness.unresolved, 1, "An expired target must retain outstanding mistakes in preparation evidence");
+assert.equal(JSON.stringify(staleProfile), staleSnapshot, "Date expiry must not mutate saved progress or activity");
 const short = createExamPlan(today, "2026-10-10");
 assert.equal(getExamPlan(bank, empty(), short, today).newTarget, 1955);
 const dst = createExamPlan(new Date(2026, 9, 20, 12));
 assert.equal(getExamPlan(bank, empty(), dst, new Date(2026, 9, 26, 12)).daysLeft, 14, "Count calendar days across DST");
+const dstExam = { ...config, examDate: "2026-10-25" };
+for (const current of [new Date(2026, 9, 25, 0, 30), new Date(2026, 9, 25, 2, 30)]) {
+  const plan = getExamPlan(bank, empty(), dstExam, current);
+  assert.equal(plan.daysLeft, 0, "The exam remains today on both sides of the DST change");
+  assert.equal(plan.phase, "exam");
+}
+assert.equal(getExamPlan(bank, empty(), dstExam, new Date(2026, 9, 26, 0, 30)).phase, "expired");
 
 const known = empty();
 known.questionProgress = Object.fromEntries(bank.map((question) => [question.id, progress(true, "2026-10-01T12:00:00Z")]));
