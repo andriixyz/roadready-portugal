@@ -622,7 +622,7 @@ function renderQuestion() {
             <h1>${escapeHtml(title)}</h1>
           </div>
           ${questionVerificationMarkup(q, session.checked)}
-          <div class="not-sure-control"><label for="notSure"><input id="notSure" type="checkbox" aria-describedby="notSureHelp" ${session.notSure[session.index] ? "checked" : ""} ${session.checked ? "disabled" : ""} /><span>${t("quiz.notSure")}</span></label><p id="notSureHelp">${t("quiz.notSureHelp")}</p></div>
+          <label class="not-sure-control" for="notSure"><span class="not-sure-heading"><input id="notSure" type="checkbox" aria-describedby="notSureHelp" ${session.notSure[session.index] ? "checked" : ""} ${session.checked ? "disabled" : ""} aria-labelledby="notSureLabel" /><span id="notSureLabel">${t("quiz.notSure")}</span></span><span class="not-sure-help" id="notSureHelp">${t("quiz.notSureHelp")}</span></label>
           <div class="answers">${q.answers.map((answer, i) => {
             const selected = session.selected === answer.key || answerState?.pick === answer.key;
             const checked = session.checked;

@@ -360,10 +360,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .language-toggle button.active { background: var(--surface); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.06); }
 .question-intro h1 { margin: 0 0 25px; font: 500 clamp(24px, 3.2vw, 34px)/1.22 Georgia, serif; letter-spacing: -1px; }
 .answers { display: grid; gap: 11px; }
-.not-sure-control { margin-bottom: 16px; padding: 0 13px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
-.not-sure-control label { display: flex; align-items: center; gap: 10px; min-height: 44px; width: fit-content; font-size: 13px; font-weight: 750; cursor: pointer; }
+.not-sure-control { display: block; margin-bottom: 16px; padding: 0 13px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); cursor: pointer; }
+.not-sure-heading { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 13px; font-weight: 750; }
 .not-sure-control input { width: 18px; height: 18px; margin: 0; accent-color: var(--green); flex: none; }
-.not-sure-control p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.not-sure-help { display: block; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.not-sure-control:has(input:focus-visible) { outline: 3px solid var(--orange); outline-offset: 2px; }
+.not-sure-control:has(input:disabled) { cursor: default; }
 .question-saved-note { margin: 12px 0 0; color: var(--green); font-size: 11px; line-height: 1.5; }
 .saved-preview { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 20px; margin-bottom: 24px; color: var(--ink); text-decoration: none; }
 .saved-preview strong { font-size: 16px; }
