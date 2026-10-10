@@ -57,6 +57,35 @@ export function recentMocks(profile, language, today = new Date()) {
   }).sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt));
 }
 
+// IMT Category B theory exam: 30 questions in 30 minutes, at most 3 errors.
+// Shorter practice runs are judged at the same 90% standard.
+export const OFFICIAL_EXAM = { questions: 30, maxErrors: 3, minutes: 30 };
+
+export const allowedErrors = (total) => Math.floor(total * OFFICIAL_EXAM.maxErrors / OFFICIAL_EXAM.questions);
+export const runPassed = (run) => run.total - run.correct <= allowedErrors(run.total);
+export const runWithinTime = (run) => Number.isFinite(run.durationSeconds)
+  && run.durationSeconds <= OFFICIAL_EXAM.minutes * 60;
+
+export function summariseRuns(runs) {
+  const sorted = [...runs].sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt));
+  const count = sorted.length;
+  const passed = sorted.filter(runPassed).length;
+  let streak = 0;
+  for (let index = count - 1; index >= 0 && runPassed(sorted[index]); index--) streak++;
+  const best = sorted.reduce((top, run) => !top || run.correct / run.total > top.correct / top.total
+    || (run.correct / run.total === top.correct / top.total && run.total > top.total) ? run : top, null);
+  const timed = sorted.filter((run) => Number.isFinite(run.durationSeconds));
+  const average = (values) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  return {
+    runs: sorted, count, passed, failed: count - passed, streak, best, latest: sorted[count - 1] || null,
+    passRate: count ? Math.round(passed / count * 100) : 0,
+    averagePercent: count ? Math.round(average(sorted.map((run) => run.correct / run.total * 100))) : 0,
+    averageErrors: count ? Math.round(average(sorted.map((run) => run.total - run.correct)) * 10) / 10 : 0,
+    averageSeconds: timed.length ? Math.round(average(timed.map((run) => run.durationSeconds))) : null,
+    withinTime: sorted.filter(runWithinTime).length,
+  };
+}
+
 export function examReadiness(questions, profile, language = "en", today = new Date(), sample = false) {
   const topics = examTopicStats(questions, profile);
   const seen = topics.reduce((sum, topic) => sum + topic.seen, 0);

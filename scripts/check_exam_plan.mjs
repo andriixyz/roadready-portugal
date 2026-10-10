@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions } from "../exam-plan.js";
+import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions, allowedErrors, runPassed, runWithinTime, summariseRuns } from "../exam-plan.js";
 import { normaliseStudyProfile, recoverStudyProfile, validateStudyProfile } from "../profile-data.js";
 import { mergeProfiles } from "../sync.js";
 
@@ -118,4 +118,29 @@ assert.deepEqual(normaliseStudyProfile(known, empty()).sessions, known.sessions)
 assert.throws(() => validateStudyProfile({ ...known, examPlan: { ...config, language: "xx" } }));
 assert.equal(recoverStudyProfile({ ...known, examPlan: { ...config, language: "xx" } }, { ...empty(), examPlan: null }).examPlan, null);
 assert.equal(recoverStudyProfile(known, empty()).questionProgress["q-0"].firstSeenAt, known.questionProgress["q-0"].firstSeenAt);
-console.log("Exam plan checks passed: daily pacing, calendar deadlines, balanced coverage, latest mistakes, language-aware mocks without time restrictions, sync and backup preservation.");
+// Pass/fail follows the IMT rule (at most 3 errors in 30) and scales to shorter runs.
+assert.deepEqual([30, 20, 10, 9, 3].map(allowedErrors), [3, 2, 1, 0, 0]);
+assert.equal(runPassed({ correct: 27, total: 30 }), true, "27/30 is the official pass mark");
+assert.equal(runPassed({ correct: 26, total: 30 }), false, "A fourth error fails the mock");
+assert.equal(runPassed({ correct: 9, total: 10 }), true);
+assert.equal(runPassed({ correct: 8, total: 10 }), false);
+assert.equal(runWithinTime({ durationSeconds: 1800 }), true);
+assert.equal(runWithinTime({ durationSeconds: 1801 }), false);
+assert.equal(runWithinTime({}), false, "Legacy runs without a duration are not reported as on time");
+const runStats = summariseRuns([
+  { correct: 29, total: 30, completedAt: "2026-10-08T10:00:00Z", durationSeconds: 1200 },
+  { correct: 25, total: 30, completedAt: "2026-10-07T10:00:00Z", durationSeconds: 2000 },
+  { correct: 28, total: 30, completedAt: "2026-10-09T10:00:00Z" },
+  { correct: 10, total: 10, completedAt: "2026-10-06T10:00:00Z", durationSeconds: 300 },
+]);
+assert.deepEqual(runStats.runs.map((run) => run.completedAt.slice(8, 10)), ["06", "07", "08", "09"], "Runs are ordered oldest first");
+assert.equal(runStats.count, 4);
+assert.equal(runStats.passed, 3);
+assert.equal(runStats.passRate, 75);
+assert.equal(runStats.streak, 2, "The streak counts consecutive passes ending with the latest run");
+assert.equal(runStats.best.correct, 10, "Best score compares accuracy, not raw counts");
+assert.equal(runStats.averageErrors, 2);
+assert.equal(runStats.averageSeconds, 1167, "Average time ignores runs without a duration");
+assert.equal(runStats.withinTime, 2);
+assert.deepEqual(summariseRuns([]), { runs: [], count: 0, passed: 0, failed: 0, streak: 0, best: null, latest: null, passRate: 0, averagePercent: 0, averageErrors: 0, averageSeconds: null, withinTime: 0 });
+console.log("Exam plan checks passed: daily pacing, calendar deadlines, balanced coverage, latest mistakes, language-aware mocks without time restrictions, pass/fail rules and run statistics, sync and backup preservation.");

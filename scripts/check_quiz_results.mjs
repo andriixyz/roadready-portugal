@@ -191,4 +191,33 @@ for (const language of ["en", "pt"]) {
   assert.equal(run("profile.language"), "ru", "A fallback session must retain the saved Russian preference");
   assert.ok(main.innerHTML.includes(translate("quiz.russianUnavailable", "en")));
 }
-console.log("Quiz results checks passed: immediate feedback without navigation/submission, preserved first attempts, late renders/language/sync, single recording, review details and PDF verification.");
+// Every finished run shows a pass/fail verdict and its place in the run history.
+context.fetch = undefined;
+run(`profile = defaultProfile(); questions = Array.from({ length: 30 }, (_, index) => ({ ...fixtureQuestions[0], id: "mock-" + index }));
+  location.hash = "#quiz"; session = createQuizSession("exam", questions, "en");
+  session.answers = questions.map((question, index) => ({ pick: index < 4 ? "B" : "A", correct: index >= 4 }));
+  finishSession();`);
+assert.ok(main.innerHTML.includes('class="run-verdict is-fail"'), "Four errors in a 30-question mock fail");
+assert.ok(main.innerHTML.includes(translate("result.mockRuleFail", "en", { mistakes: "4", over: "1", allowed: "3", pass: "27", total: "30" })));
+assert.ok(main.innerHTML.includes(translate("result.historyMock", "en", { number: "1", passed: "0", count: "1", best: "26/30" })));
+run(`location.hash = "#quiz"; session = createQuizSession("exam", questions, "en");
+  session.answers = questions.map((question, index) => ({ pick: index < 3 ? "B" : "A", correct: index >= 3 }));
+  finishSession();`);
+assert.ok(main.innerHTML.includes('class="run-verdict is-pass"'), "Three errors in a 30-question mock pass");
+assert.ok(main.innerHTML.includes(translate("result.withinTime", "en", { time: "00:00", limit: "30" })));
+assert.ok(main.innerHTML.includes(translate("result.deltaMock", "en", { delta: "+1" })));
+assert.ok(main.innerHTML.includes(translate("result.historyMock", "en", { number: "2", passed: "1", count: "2", best: "27/30" })));
+run(`profile.sessions.push({ id: "slow", mode: "exam", correct: 30, total: 30, percent: 100, completedAt: "2026-10-09T10:00:00Z", durationSeconds: 2400, language: "en" },
+  { id: "practice", mode: "quick", correct: 8, total: 10, percent: 80, completedAt: "2026-10-09T11:00:00Z", durationSeconds: 120, language: "ru" });
+  session = null; runFilter = "exam"; location.hash = "#results"; renderResults();`);
+assert.equal((main.innerHTML.match(/<tr>/g) || []).length, 4, "The mock filter lists the header plus three mocks");
+assert.ok(main.innerHTML.includes(translate("runs.passedOf", "en", { passed: "2", count: "3" })));
+assert.ok(main.innerHTML.includes(translate("runs.overTime", "en")), "Mocks over 30 minutes are flagged");
+assert.ok(!main.innerHTML.includes(translate("runs.mode.quick", "en")));
+run(`runFilter = "all"; renderResults();`);
+assert.equal((main.innerHTML.match(/<tr>/g) || []).length, 5, "All runs include practice");
+assert.ok(main.innerHTML.includes(translate("runs.mode.quick", "en")));
+assert.equal((main.innerHTML.match(/class="run-bar is-fail"/g) || []).length, 2, "Chart bars mark failed runs");
+run(`profile = defaultProfile(); runFilter = "exam"; renderResults();`);
+assert.ok(main.innerHTML.includes(translate("runs.emptyTitle", "en")), "No runs shows an empty state");
+console.log("Quiz results checks passed: immediate feedback without navigation/submission, preserved first attempts, late renders/language/sync, single recording, review details, PDF verification, pass/fail verdicts and the results dashboard.");

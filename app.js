@@ -1,11 +1,11 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261008-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261008-5";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261010-1";
 import { createQuizSession, setSessionNotSure, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261008-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261008-1";
 import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
 import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "./question-verification.js?v=20261002-1";
-import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions } from "./exam-plan.js?v=20261008-1";
+import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions, OFFICIAL_EXAM, allowedErrors, runPassed, runWithinTime, summariseRuns } from "./exam-plan.js?v=20261010-1";
 import { renderSpeedLimits } from "./speed-limits.js?v=20261008-2";
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -14,6 +14,7 @@ const main = $("#mainContent");
 const SESSION_LIMITS = { quick: 10, review: 20, mistakes: 20, exam: 30, learn: 20, repair: 20 };
 const suggestedExamPlan = { startedOn: "2026-10-07", examDate: "2026-10-27", language: "en" };
 let topicOrder = "weakest";
+let runFilter = "exam";
 let savedQuestionPage = 0;
 const SAVED_QUESTIONS_PER_PAGE = 20;
 
@@ -323,7 +324,7 @@ function planScheduleMarkup(plan) {
 }
 
 function setActiveRoute(route) {
-  $$("[data-route]").forEach((link) => link.classList.toggle("active", link.dataset.route === route));
+  $$("[data-route]").forEach((link) => link.classList.toggle("active", link.dataset.route === route || link.dataset.routeAlso === route));
 }
 
 function render() {
@@ -343,6 +344,7 @@ function render() {
   if (route === "practice") renderPractice();
   else if (route === "saved-questions") renderSavedQuestions();
   else if (route === "progress") renderProgress();
+  else if (route === "results") renderResults();
   else if (route === "sources") renderSources();
   else if (route === "speed-limits") renderSpeedLimits(main, { t, escapeHtml, onPractice: () => { void startSession("quick", "Velocidade"); } });
   else if (route === "quiz" && session?.result) renderResult(session, session.result);
@@ -842,7 +844,7 @@ function finishSession() {
 function renderResult(finished, result) {
   const errors = result.total - result.correct;
   const errorLabel = t(profile.uiLanguage === "ru" ? russianPluralKey(errors, "result.errors") : errors === 1 ? "result.errors.one" : "result.errors");
-  const passed = finished.mode === "exam" ? errors <= 3 : result.percent >= 80;
+  const passed = runPassed(result);
   const missed = finished.questions.map((question, index) => ({ question, answer: finished.answers[index] })).filter(({ answer }) => !answer?.correct);
   const language = finished.questionLanguage || profile.language || "en";
   const review = missed.length ? `<section class="result-review"><div class="section-heading"><div><h2>${t("result.review")}</h2><p>${t("result.reviewHelp")}</p></div></div>${missed.map(({ question, answer }) => renderReviewItem(question, answer, language)).join("")}</section>` : "";
@@ -850,12 +852,78 @@ function renderResult(finished, result) {
     ? passed ? t("result.examPassed") : t("result.examFailed", { count: formatNumber(errors) })
     : t("result.practiceHelp");
   const next = nextPlanMode();
-  main.innerHTML = `<div class="page">${russianCorpusNotice()}<article class="card result-card"><span class="eyebrow">${finished.mode === "exam" ? t("result.mockComplete") : t("result.practiceComplete")}</span><div class="result-orb">${formatNumber(result.correct)}/${formatNumber(result.total)}</div><h1>${passed ? t("result.strong") : t("result.useful")}</h1><p>${summary}</p><div class="result-stats"><div><strong>${result.percent}%</strong><span>${t("result.accuracy")}</span></div><div><strong>${formatNumber(errors)}</strong><span>${errorLabel}</span></div><div><strong>${formatMinuteCount(Math.ceil(result.durationSeconds / 60))}</strong><span>${t("result.time")}</span></div></div><div class="result-actions"><button class="button button-secondary" id="resultHome">${t("result.dashboard")}</button><button class="button button-primary" id="resultAgain">${t("result.again")}</button>${next ? `<button class="button button-accent" data-start="${next}">${t(`plan.start.${next}`)} →</button>` : ""}</div></article>${review}</div>`;
+  main.innerHTML = `<div class="page">${russianCorpusNotice()}<article class="card result-card"><span class="eyebrow">${finished.mode === "exam" ? t("result.mockComplete") : t("result.practiceComplete")}</span><div class="result-orb">${formatNumber(result.correct)}/${formatNumber(result.total)}</div><h1>${passed ? t("result.strong") : t("result.useful")}</h1><p>${summary}</p>${runVerdictMarkup(finished.mode, result)}<div class="result-stats"><div><strong>${result.percent}%</strong><span>${t("result.accuracy")}</span></div><div><strong>${formatNumber(errors)}</strong><span>${errorLabel}</span></div><div><strong>${formatMinuteCount(Math.ceil(result.durationSeconds / 60))}</strong><span>${t("result.time")}</span></div></div><div class="result-actions"><button class="button button-secondary" id="resultHome">${t("result.dashboard")}</button><button class="button button-primary" id="resultAgain">${t("result.again")}</button>${next ? `<button class="button button-accent" data-start="${next}">${t(`plan.start.${next}`)} →</button>` : ""}</div></article>${review}</div>`;
   $("#resultHome").addEventListener("click", () => { session = null; location.hash = "dashboard"; });
   $("#resultAgain").addEventListener("click", () => startSession(finished.mode, finished.topic));
   bindStartButtons();
   $$(".review-image img").forEach((image) => image.addEventListener("error", () => {
     if (!image.dataset.remoteFallback) { image.dataset.remoteFallback = "true"; image.src = image.dataset.remoteImage; }
+  }));
+}
+
+const formatSignedNumber = (value) => `${value > 0 ? "+" : value < 0 ? "−" : "±"}${formatNumber(Math.abs(value))}`;
+const formatScore = (run) => `${formatNumber(run.correct)}/${formatNumber(run.total)}`;
+const runGroup = (mode) => profile.sessions.filter((run) => (mode === "exam") === (run.mode === "exam"));
+
+function runVerdictMarkup(mode, result) {
+  const passed = runPassed(result);
+  const mistakes = result.total - result.correct;
+  const allowed = allowedErrors(result.total);
+  const isMock = mode === "exam";
+  const values = { mistakes: formatNumber(mistakes), allowed: formatNumber(allowed), over: formatNumber(mistakes - allowed), total: formatNumber(result.total), pass: formatNumber(result.total - allowed) };
+  const rule = t(`result.${isMock ? "mock" : "practice"}Rule${passed ? "Pass" : "Fail"}`, values);
+  const time = isMock && Number.isFinite(result.durationSeconds)
+    ? `<p class="run-verdict-time ${runWithinTime(result) ? "" : "is-over"}">${t(runWithinTime(result) ? "result.withinTime" : "result.overTime", { time: formatTime(result.durationSeconds), limit: formatNumber(OFFICIAL_EXAM.minutes) })}</p>` : "";
+  const history = summariseRuns(runGroup(mode));
+  const index = history.runs.findIndex((run) => run.id === result.id);
+  const previous = index > 0 ? history.runs[index - 1] : null;
+  const delta = previous ? (isMock && previous.total === result.total
+    ? t("result.deltaMock", { delta: formatSignedNumber(result.correct - previous.correct) })
+    : t("result.deltaPractice", { delta: formatSignedNumber(result.percent - Math.round(previous.correct / previous.total * 100)) })) : "";
+  const summary = index === -1 ? "" : t(isMock ? "result.historyMock" : "result.historyPractice", { number: formatNumber(index + 1), passed: formatNumber(history.passed), count: formatNumber(history.count), best: history.best ? formatScore(history.best) : "—" });
+  return `<div class="run-verdict ${passed ? "is-pass" : "is-fail"}"><span class="run-verdict-badge">${passed ? "✓" : "✕"} ${t(passed ? "result.verdictPassed" : "result.verdictFailed")}</span><p>${rule}</p>${time}${summary ? `<p class="run-verdict-history">${summary}${delta ? ` · ${delta}` : ""}</p>` : ""}<a class="text-link" href="#results">${t("result.allResults")}</a></div>`;
+}
+
+// Phones have no room for another bottom-bar item, so Progress and Results share one tab there.
+const analyticsTabs = (active) => `<nav class="analytics-tabs" aria-label="${escapeHtml(t("runs.analyticsNav"))}">${["progress", "results"].map((route) => `<a href="#${route}" class="${route === active ? "active" : ""}" ${route === active ? 'aria-current="page"' : ""}>${t(`nav.${route}`)}</a>`).join("")}</nav>`;
+
+function renderResults() {
+  const runs = runFilter === "exam" ? runGroup("exam") : profile.sessions;
+  const stats = summariseRuns(runs);
+  const recent = stats.runs.slice(-20);
+  const dateFormat = new Intl.DateTimeFormat(currentLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const verdict = (run) => t(runPassed(run) ? "runs.passed" : "runs.failed");
+  const filter = `<div class="run-filter" role="group" aria-label="${escapeHtml(t("runs.filterLabel"))}">${["exam", "all"].map((key) => `<button type="button" data-run-filter="${key}" class="${runFilter === key ? "active" : ""}" aria-pressed="${runFilter === key}">${t(`runs.filter.${key}`)}</button>`).join("")}</div>`;
+  const header = `<header class="page-header"><div><span class="eyebrow">${t("runs.eyebrow")}</span><h1>${t("runs.title")}</h1><p>${t("runs.subtitle")}</p></div><span class="date-chip">${formatSessionCount(stats.count)}</span></header>`;
+  if (!stats.count) {
+    main.innerHTML = `<div class="page results-page">${analyticsTabs("results")}${header}${filter}<article class="card run-empty"><h2>${t("runs.emptyTitle")}</h2><p>${t("runs.empty")}</p><button class="button button-primary" data-start="exam">${t("practice.startMock")}</button></article></div>`;
+  } else {
+    const cards = `<section class="stat-grid"><article class="card stat-card"><span>${t("runs.passRate")}</span><strong>${formatNumber(stats.passRate)}%</strong><small>${t("runs.passedOf", { passed: formatNumber(stats.passed), count: formatNumber(stats.count) })}</small></article><article class="card stat-card"><span>${t("runs.best")}</span><strong>${formatScore(stats.best)}</strong><small>${t("runs.mistakes", { count: formatNumber(stats.best.total - stats.best.correct) })}</small></article><article class="card stat-card"><span>${t("runs.average")}</span><strong>${formatNumber(stats.averagePercent)}%</strong><small>${t("runs.averageMistakes", { count: formatNumber(stats.averageErrors) })}</small></article><article class="card stat-card"><span>${t("runs.streak")}</span><strong>${formatNumber(stats.streak)}</strong><small>${stats.averageSeconds === null ? t("runs.noTime") : t("runs.averageTime", { time: formatTime(stats.averageSeconds) })}</small></article></section>`;
+    const offset = stats.count - recent.length;
+    const chart = `<article class="card run-chart-card"><h3>${t("runs.trend")}</h3><p>${t("runs.trendHelp", { count: formatNumber(recent.length) })}</p><div class="run-chart" role="list"><div class="run-chart-line" aria-hidden="true"><span>${t("runs.passLine")}</span></div>${recent.map((run, index) => `<div class="run-bar ${runPassed(run) ? "is-pass" : "is-fail"}" role="listitem" style="--height:${Math.max(3, Math.round((run.correct / run.total * 100 - 50) * 2))}%" aria-label="${escapeHtml(t("runs.barLabel", { number: formatNumber(offset + index + 1), score: formatScore(run), verdict: verdict(run) }))}"><span aria-hidden="true">${formatNumber(offset + index + 1)}</span></div>`).join("")}</div></article>`;
+    const columns = ["number", "date", "type", "language", "score", "mistakes", "time", "result"].map((key) => t(`runs.col.${key}`));
+    const rows = stats.runs.map((run, index) => ({ run, number: index + 1 })).reverse().map(({ run, number }) => {
+      const timed = Number.isFinite(run.durationSeconds);
+      const cells = [
+        formatNumber(number),
+        escapeHtml(dateFormat.format(new Date(run.completedAt))),
+        escapeHtml(t(`runs.mode.${run.mode}`)),
+        run.language ? escapeHtml(String(run.language).toUpperCase()) : "—",
+        `<strong>${formatScore(run)}</strong> <span class="muted">${formatNumber(Math.round(run.correct / run.total * 100))}%</span>`,
+        `${formatNumber(run.total - run.correct)} <span class="muted">/ ${formatNumber(allowedErrors(run.total))}</span>`,
+        timed ? `${formatTime(run.durationSeconds)}${run.mode === "exam" && !runWithinTime(run) ? ` <span class="run-over">${t("runs.overTime")}</span>` : ""}` : "—",
+        `<span class="run-badge ${runPassed(run) ? "is-pass" : "is-fail"}">${verdict(run)}</span>`,
+      ];
+      return `<tr>${cells.map((cell, column) => `<td data-label="${escapeHtml(columns[column])}">${cell}</td>`).join("")}</tr>`;
+    }).join("");
+    const table = `<div class="section-heading"><div><h2>${t("runs.history")}</h2><p>${t("runs.historyHelp")}</p></div></div><div class="card run-table-card"><table class="run-table"><thead><tr>${columns.map((column) => `<th scope="col">${column}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    main.innerHTML = `<div class="page results-page">${russianCorpusNotice()}${analyticsTabs("results")}${header}${filter}${cards}${chart}${table}</div>`;
+  }
+  bindStartButtons();
+  $$("[data-run-filter]").forEach((button) => button.addEventListener("click", () => {
+    runFilter = button.dataset.runFilter;
+    renderResults();
+    if (modal.hidden) $(`[data-run-filter="${runFilter}"]`).focus({ preventScroll: true });
   }));
 }
 
@@ -900,7 +968,7 @@ function renderProgress() {
     return { topic: pt, name: names[profile.uiLanguage] || names.en, seen, total: topicQuestions.length, coverage, percent: Math.round(coverage * 100), attempts: correct + wrong, accuracy: correct + wrong ? Math.round(correct / (correct + wrong) * 100) : 0 };
   }).sort((a, b) => (topicOrder === "coverage" ? b.coverage - a.coverage : a.coverage - b.coverage || a.accuracy - b.accuracy)
     || a.name.localeCompare(b.name, currentLocale()));
-  main.innerHTML = `<div class="page">${russianCorpusNotice()}<header class="page-header"><div><span class="eyebrow">${t("progress.eyebrow")}</span><h1>${t("progress.title")}</h1><p>${t("progress.subtitle")}</p></div><span class="date-chip">${t("progress.seen", { questions: formatQuestionCount(s.seen) })}</span></header><section class="stat-grid"><article class="card stat-card"><span>${t("plan.studyTargets")}</span><strong>${plan.readiness.met}/4</strong><small>${t(plan.readiness.ready ? "plan.targetsMet" : "plan.targetsPending")}</small></article><article class="card stat-card"><span>${t("progress.coverage")}</span><strong>${Math.round(s.coverage)}%</strong><small>${formatNumber(s.seen)}/${formatNumber(questions.length)}</small></article><article class="card stat-card"><span>${t("progress.accuracy")}</span><strong>${s.accuracy}%</strong><small>${t("progress.target90")}</small></article><article class="card stat-card"><span>${t("progress.mockAverage")}</span><strong>${s.mock}%</strong><small>${t("plan.recentMocks", { language: planLanguage(plan) })}</small></article></section>${readinessMarkup(plan)}<div class="section-heading"><h2>${t("progress.activity")}</h2></div><section class="progress-layout"><article class="card chart-card"><h3>${t("progress.answered")}</h3><p>${t("progress.lastSeven")}</p><div class="bar-chart">${last7.map((day, i) => `<div class="bar ${i === 6 ? "active" : ""}" style="--height:${Math.max(3, (day.count / max) * 100)}%" role="img" aria-label="${escapeHtml(day.label)}: ${formatQuestionCount(day.count)}"><span>${day.label}</span></div>`).join("")}</div></article><article class="card coverage-card"><h3>${t("progress.syllabus")}</h3><p>${t(topicOrder === "coverage" ? "progress.topicsCoveredFirst" : "progress.topicsFirst")}</p><label class="topic-sort" for="topicOrder">${t("progress.topicOrder")}<select id="topicOrder"><option value="weakest" ${topicOrder === "weakest" ? "selected" : ""}>${t("progress.weakestFirst")}</option><option value="coverage" ${topicOrder === "coverage" ? "selected" : ""}>${t("progress.coveredFirst")}</option></select></label><div class="topic-list">${topicStats.map((topic) => `<div class="topic-row"><strong><button class="topic-practice" data-topic="${escapeHtml(topic.topic)}">${escapeHtml(topic.name)} ↗</button></strong><span>${formatNumber(topic.seen)}/${formatNumber(topic.total)}</span><small>${topic.attempts ? t("progress.topicAccuracy", { percent: formatNumber(topic.accuracy) }) : t("progress.notPracticed")}</small><div class="meter" style="--value:${topic.percent}%"><span></span></div></div>`).join("")}</div></article></section></div>`;
+  main.innerHTML = `<div class="page">${russianCorpusNotice()}${analyticsTabs("progress")}<header class="page-header"><div><span class="eyebrow">${t("progress.eyebrow")}</span><h1>${t("progress.title")}</h1><p>${t("progress.subtitle")}</p></div><span class="date-chip">${t("progress.seen", { questions: formatQuestionCount(s.seen) })}</span></header><section class="stat-grid"><article class="card stat-card"><span>${t("plan.studyTargets")}</span><strong>${plan.readiness.met}/4</strong><small>${t(plan.readiness.ready ? "plan.targetsMet" : "plan.targetsPending")}</small></article><article class="card stat-card"><span>${t("progress.coverage")}</span><strong>${Math.round(s.coverage)}%</strong><small>${formatNumber(s.seen)}/${formatNumber(questions.length)}</small></article><article class="card stat-card"><span>${t("progress.accuracy")}</span><strong>${s.accuracy}%</strong><small>${t("progress.target90")}</small></article><article class="card stat-card"><span>${t("progress.mockAverage")}</span><strong>${s.mock}%</strong><small>${t("plan.recentMocks", { language: planLanguage(plan) })}</small><a class="text-link stat-link" href="#results">${t("result.allResults")}</a></article></section>${readinessMarkup(plan)}<div class="section-heading"><h2>${t("progress.activity")}</h2></div><section class="progress-layout"><article class="card chart-card"><h3>${t("progress.answered")}</h3><p>${t("progress.lastSeven")}</p><div class="bar-chart">${last7.map((day, i) => `<div class="bar ${i === 6 ? "active" : ""}" style="--height:${Math.max(3, (day.count / max) * 100)}%" role="img" aria-label="${escapeHtml(day.label)}: ${formatQuestionCount(day.count)}"><span>${day.label}</span></div>`).join("")}</div></article><article class="card coverage-card"><h3>${t("progress.syllabus")}</h3><p>${t(topicOrder === "coverage" ? "progress.topicsCoveredFirst" : "progress.topicsFirst")}</p><label class="topic-sort" for="topicOrder">${t("progress.topicOrder")}<select id="topicOrder"><option value="weakest" ${topicOrder === "weakest" ? "selected" : ""}>${t("progress.weakestFirst")}</option><option value="coverage" ${topicOrder === "coverage" ? "selected" : ""}>${t("progress.coveredFirst")}</option></select></label><div class="topic-list">${topicStats.map((topic) => `<div class="topic-row"><strong><button class="topic-practice" data-topic="${escapeHtml(topic.topic)}">${escapeHtml(topic.name)} ↗</button></strong><span>${formatNumber(topic.seen)}/${formatNumber(topic.total)}</span><small>${topic.attempts ? t("progress.topicAccuracy", { percent: formatNumber(topic.accuracy) }) : t("progress.notPracticed")}</small><div class="meter" style="--value:${topic.percent}%"><span></span></div></div>`).join("")}</div></article></section></div>`;
   bindStartButtons();
   $("#topicOrder").addEventListener("change", (event) => {
     topicOrder = event.target.value;

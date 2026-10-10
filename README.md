@@ -14,6 +14,8 @@ Preparation is shown as four explicit study goals: encounter the whole bank; att
 
 The [IMT Category B format](https://imt.madeira.gov.pt/index.php/pt/transportes-terrestres/condutores/provas-teoricas) is **30 questions in 30 minutes, passing at 27 correct**; 28/30 is the app's preparation margin. Confirm your actual date, centre, time, English exam or interpreter arrangements and required documents with your driving school.
 
+Every finished run shows a **Passed/Not passed** verdict. A mock passes with at most 3 mistakes (27/30) and also reports whether it finished inside 30 minutes. Shorter practice runs use the same 90% standard. **Results** (under Progress on phones) collects all stored runs: pass rate, best and average score, consecutive passes, average time, a score trend and a full history table. You can filter it to mock exams or all runs.
+
 ## Remember Portugal's speed limits
 
 Open **Speed limits** in navigation or the atlas link on Practice. The English/Russian page is a six-chapter speed atlas. Chapter 01 is a garage of ten vehicle classes from the article 27 table (car, light goods van, bus, truck, motorcycles above and up to 50 cm³, tricycle, moped or quadricycle, tractor and agricultural machine), each with a trailer or sidecar row where the law has one. Pick a vehicle to see its four road cards (town, other roads, reserved road, motorway, with a "not allowed" badge where the class is barred), a memory cue such as **50, +40, +10, +20** for the car, the **20 km/h** shared-zone exception, a motorway ladder that groups vehicles by their motorway maximum, and the full table. Hide the four limits to recall them.
