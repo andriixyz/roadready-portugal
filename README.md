@@ -57,6 +57,8 @@ Settings supports keyboard focus within the dialog, Escape to close, and focus r
 
 During a quiz, press **Ask ChatGPT** to copy the screenshot and open ChatGPT in a new tab, then paste it into the composer. Return to the quiz, press **Copy prompt**, and paste the explanation request into the same composer. Paste the image before copying the prompt, because copying text replaces the image on the clipboard. If the browser blocks the new tab, use the **Open ChatGPT** link shown below the button. Neither text nor image is inserted or sent automatically. **Copy image for ChatGPT** remains available if you want to paste into an existing chat instead.
 
+After you answer, **Copy screenshot with answer** copies a PNG of the solved question: the study-key option is outlined in green with ✓, a wrong pick in red with ×, and a line below the options states whether the answer was correct or a mistake. The ChatGPT image and prompt stay unmarked.
+
 The prompt includes the question and options in the selected question language and asks for the relevant rule and an explanation of each option. It never includes the app's answer key or your personal study data. If text clipboard access is denied, the app shows selectable text for manual copying. Query-string prompt links are not used, because they can submit the text before an image is attached.
 
 Both buttons copy one PNG containing the full road image, the current question wording, and all answer options in the selected question language. Correct-answer highlights, explanations, progress, and the private device link are not included.

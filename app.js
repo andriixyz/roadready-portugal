@@ -1,7 +1,7 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261008-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261010-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261012-1";
 import { createQuizSession, setSessionNotSure, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261008-1";
-import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20260930-4";
+import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20261012-1";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261008-1";
 import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
 import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "./question-verification.js?v=20261002-1";
@@ -635,7 +635,7 @@ function renderQuestion() {
           ${answerState && (answerState.notSure || !answerState.correct) ? `<p class="question-saved-note" role="status">✓ ${t("saved.answerSaved")}</p>` : ""}
           ${session.checked ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}" id="answerFeedback" tabindex="-1" role="status"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: q.correct })}</strong></div><p>${escapeHtml(explanation)}</p>${explanationSourceLink(q)}<small>${session.mode === "exam" ? t("quiz.feedbackHint") : session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
           <div class="quiz-actions"><span class="quiz-hint">${t("quiz.keyboardHint")}</span><button class="button ${session.checked ? "button-primary" : "button-accent"}" id="quizPrimary" ${session.checked ? "" : "disabled"}>${session.checked ? advanceLabel : t("quiz.selectAnswer")} →</button></div>
-          <div class="question-capture-actions"><button class="button button-primary" id="askChatGPT" type="button">${t("quiz.askChatGPT")} ↗</button><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="copyQuestionPrompt" type="button">${t("quiz.copyPrompt")}</button><button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button><a class="button button-ghost" id="chatGPTOpenLink" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" hidden>${t("quiz.openChatGPT")} ↗</a></div>
+          <div class="question-capture-actions"><button class="button button-primary" id="askChatGPT" type="button">${t("quiz.askChatGPT")} ↗</button><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="copyQuestionPrompt" type="button">${t("quiz.copyPrompt")}</button>${session.checked ? `<button class="button button-ghost" id="copySolvedImage" type="button">▣ ${t("quiz.copySolvedImage")}</button>` : ""}<button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button><a class="button button-ghost" id="chatGPTOpenLink" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" hidden>${t("quiz.openChatGPT")} ↗</a></div>
           <p class="capture-status" id="questionCaptureStatus" role="status">${t("quiz.chatGPTHint")}</p>
           <div class="question-prompt-fallback" id="questionPromptFallback" hidden><label for="questionPromptText">${t("quiz.promptLabel")}</label><textarea id="questionPromptText" readonly rows="7">${escapeHtml(getQuestionChatGPTPrompt(q, language))}</textarea></div>
         </div>
@@ -656,7 +656,7 @@ function renderQuestion() {
     $("#toggleQuizNumbers").textContent = t(session.navigationExpanded ? "quiz.hideQuestions" : "quiz.showQuestions");
   });
   $$("[data-question-index]").forEach((button) => button.addEventListener("click", () => navigateQuestion(Number(button.dataset.questionIndex))));
-  bindQuestionCapture(q, language);
+  bindQuestionCapture(q, language, session.checked ? session.selected : null);
   const img = $(".question-visual img");
   if (img) img.addEventListener("error", () => {
     if (!img.dataset.remoteFallback) { img.dataset.remoteFallback = "true"; img.src = q.image; return; }
@@ -665,19 +665,27 @@ function renderQuestion() {
   if (session.mode === "exam") startTimer();
 }
 
-function bindQuestionCapture(question, language) {
-  const button = $("#copyQuestionImage"), askButton = $("#askChatGPT"), promptButton = $("#copyQuestionPrompt"), promptFallback = $("#questionPromptFallback"), promptText = $("#questionPromptText"), downloadButton = $("#downloadQuestionImage"), chatLink = $("#chatGPTOpenLink"), status = $("#questionCaptureStatus");
-  let preparedBlob = null;
-  const copyImage = async (openChatGPT = false) => {
-    const activeButton = openChatGPT ? askButton : button;
-    button.disabled = true;
-    askButton.disabled = true;
-    promptButton.disabled = true;
+function solvedCaptureSummary(question, pick) {
+  const number = (key) => formatNumber(question.answers.findIndex((answer) => answer.key === key) + 1);
+  return pick === question.correct
+    ? t("quiz.captureSolvedCorrect", { pick: number(pick) })
+    : t("quiz.captureSolvedWrong", { pick: number(pick), answer: number(question.correct) });
+}
+
+function bindQuestionCapture(question, language, solvedPick = null) {
+  const button = $("#copyQuestionImage"), askButton = $("#askChatGPT"), solvedButton = $("#copySolvedImage"), promptButton = $("#copyQuestionPrompt"), promptFallback = $("#questionPromptFallback"), promptText = $("#questionPromptText"), downloadButton = $("#downloadQuestionImage"), chatLink = $("#chatGPTOpenLink"), status = $("#questionCaptureStatus");
+  const captureButtons = [button, askButton, solvedButton, promptButton].filter(Boolean);
+  let preparedBlob = null, preparedSolved = false;
+  const copyImage = async (openChatGPT = false, solved = false) => {
+    const activeButton = solved ? solvedButton : openChatGPT ? askButton : button;
+    captureButtons.forEach((item) => { item.disabled = true; });
     activeButton.textContent = t("quiz.preparingImage");
     status.textContent = "";
     downloadButton.hidden = true;
     chatLink.hidden = true;
-    const imagePromise = createQuestionImage(question, language, { heading: t("quiz.captureHeading", { id: question.sourceId }) });
+    preparedSolved = solved;
+    const result = solved ? { pick: solvedPick, summary: solvedCaptureSummary(question, solvedPick) } : null;
+    const imagePromise = createQuestionImage(question, language, { heading: t("quiz.captureHeading", { id: question.sourceId }), result });
     try {
       // Start the write in the click event. The promised PNG preserves Safari's
       // user activation while its full-size image is still loading.
@@ -690,8 +698,9 @@ function bindQuestionCapture(question, language) {
         // ChatGPT. Keep a real link available if async popup opening is blocked.
         try { window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer"); } catch { /* Use the visible fallback link. */ }
       } else {
-        status.textContent = t("quiz.imageCopied");
-        showToast(t("quiz.imageCopied"));
+        const copied = t(solved ? "quiz.solvedImageCopied" : "quiz.imageCopied");
+        status.textContent = copied;
+        showToast(copied);
       }
     } catch {
       try {
@@ -704,16 +713,16 @@ function bindQuestionCapture(question, language) {
       }
     } finally {
       if (button.isConnected && askButton.isConnected) {
-        button.disabled = false;
-        askButton.disabled = false;
-        promptButton.disabled = false;
+        captureButtons.forEach((item) => { item.disabled = false; });
         button.textContent = `▣ ${t("quiz.copyForChatGPT")}`;
         askButton.textContent = `${t("quiz.askChatGPT")} ↗`;
+        if (solvedButton) solvedButton.textContent = `▣ ${t("quiz.copySolvedImage")}`;
       }
     }
   };
   button.addEventListener("click", () => { void copyImage(); });
   askButton.addEventListener("click", () => { void copyImage(true); });
+  solvedButton?.addEventListener("click", () => { void copyImage(false, true); });
   promptButton.addEventListener("click", async () => {
     try {
       if (!navigator.clipboard?.writeText) throw new Error("Text clipboard unavailable");
@@ -733,7 +742,7 @@ function bindQuestionCapture(question, language) {
     const url = URL.createObjectURL(preparedBlob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `roadready-question-${question.sourceId}-${language}.png`;
+    link.download = `roadready-question-${question.sourceId}-${language}${preparedSolved ? "-solved" : ""}.png`;
     document.body.append(link);
     link.click();
     link.remove();

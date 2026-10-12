@@ -73,7 +73,7 @@ For browser QA, use synthetic progress on a separate origin and disable Supabase
 - Daily activity uses the device's local calendar date. Derive the visible streak from activity/legacy sessions, rather than trusting the stored `streak` field.
 - Backup import must validate/load everything before committing to storage and then memory. Invalid data, unavailable Russian content or quota failure must leave the previous profile intact. Retain startup recovery and the 2 MiB/100-session limits.
 - Keep private sync keys out of source, logs and query strings. Device links use a URL fragment that is removed on import. The Supabase URL/publishable key are public settings; the private sync key grants profile access. Keep the database table inaccessible to browser roles except through scoped RPCs.
-- Question capture includes the full image and current wording/options, without answer highlights, explanations or personal data. Preserve the promised PNG clipboard write started in the click handler, plus download/manual-copy fallbacks. ChatGPT opens for manual pasting; content is not automatically submitted.
+- Question capture includes the full image and current wording/options, without answer highlights, explanations or personal data. Only the explicit post-answer **Copy screenshot with answer** action marks the study key, wrong pick and verdict. Preserve the promised PNG clipboard write started in the click handler, plus download/manual-copy fallbacks. ChatGPT opens for manual pasting; content is not automatically submitted.
 - Preserve settings focus trapping/restoration, mobile sticky timer/navigation and results focus/scroll behavior. Escape external text before interpolating it into HTML.
 
 ## Maintenance shortcuts

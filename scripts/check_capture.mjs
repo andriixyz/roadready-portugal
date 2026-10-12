@@ -48,7 +48,24 @@ assert.equal(imageDraws[0][4] / imageDraws[0][3], 480 / 640, "The image aspect r
 assert.ok(textDraws.includes(question.text.ru));
 assert.ok(textDraws.includes(question.answers[0].ru));
 assert.ok(!textDraws.includes("SECRET_EXPLANATION"));
+assert.ok(!textDraws.includes("✓") && !textDraws.includes("×"), "The default capture must not mark answers");
+const plainHeight = canvas.height;
+for (const [pick, mark] of [["A", "×"], ["B", "✓"]]) {
+  textDraws.length = 0;
+  const strokes = [];
+  context.strokeRect = (...args) => strokes.push({ ...args, color: context.strokeStyle });
+  await createQuestionImage(question, "en", { documentTarget, imageLoader, result: { pick, summary: `SUMMARY_${pick}` } });
+  assert.ok(textDraws.includes(`SUMMARY_${pick}`), "The solved capture must state the verdict");
+  assert.ok(textDraws.includes("✓"), "The solved capture must mark the study key");
+  assert.equal(textDraws.includes("×"), pick !== question.correct, "Only a wrong pick is crossed out");
+  assert.ok(textDraws.includes(mark));
+  assert.ok(strokes.some(stroke => stroke.color === "#2f8a57"), "The study key is outlined in green");
+  assert.equal(strokes.some(stroke => stroke.color === "#c2463a"), pick !== question.correct);
+  assert.ok(!textDraws.includes("SECRET_EXPLANATION"));
+  assert.ok(canvas.height > plainHeight, "The verdict row must fit inside the canvas");
+}
+delete context.strokeRect;
 imageDraws.length = 0;
 await createQuestionImage({ ...question, image: "" }, "en", { documentTarget, imageLoader: () => { throw new Error("Unexpected image load"); } });
 assert.equal(imageDraws.length, 0, "Text-only questions must also work");
-console.log("Question capture checks passed: languages, wrapping, full image ratio, text-only questions, and no answer spoilers.");
+console.log("Question capture checks passed: languages, wrapping, full image ratio, text-only questions, no answer spoilers by default, and solved captures with verdicts.");

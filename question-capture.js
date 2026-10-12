@@ -60,6 +60,12 @@ function loadImage(url) {
   });
 }
 
+const CAPTURE_ANSWER_STYLES = {
+  "": { fill: "#ffffff", stroke: "#d9dfd8", badge: "#eaf0e9", label: "#245e46" },
+  correct: { fill: "#e5f4ea", stroke: "#2f8a57", badge: "#c6e8d2", label: "#1f6b41" },
+  wrong: { fill: "#fbe8e6", stroke: "#c2463a", badge: "#f5cbc6", label: "#a3352b" },
+};
+
 function drawBox(context, x, y, width, height, fill, stroke) {
   context.fillStyle = fill;
   context.fillRect(x, y, width, height);
@@ -73,6 +79,9 @@ function drawBox(context, x, y, width, height, fill, stroke) {
 export async function createQuestionImage(question, language, {
   heading = `RoadReady · Portugal B · #${question.sourceId}`,
   documentTarget = document, imageLoader = loadImage,
+  // Optional solved state: { pick, summary }. Without it the PNG has no answer
+  // highlights, so the default ChatGPT capture does not reveal the study key.
+  result = null,
 } = {}) {
   const content = getCaptureContent(question, language);
   const image = content.imagePath ? await imageLoader(content.imagePath) : null;
@@ -88,8 +97,12 @@ export async function createQuestionImage(question, language, {
   const imageHeight = image ? Math.round(imageWidth * image.naturalHeight / image.naturalWidth) : 0;
   const questionHeight = questionLines.length * 54;
   const answerHeights = answerLines.map(answer => Math.max(88, answer.lines.length * 44 + 36));
+  const isCorrect = result ? result.pick === question.correct : false;
+  context.font = "700 32px Arial, sans-serif";
+  const summaryLines = result?.summary ? wrapCanvasText(context, result.summary, innerWidth - 48) : [];
+  const summaryHeight = summaryLines.length ? summaryLines.length * 42 + 40 : 0;
   canvas.width = width;
-  canvas.height = padding + 52 + (image ? imageHeight + 36 : 0) + questionHeight + 36 + answerHeights.reduce((sum, height) => sum + height + 18, 0) + 60 + padding;
+  canvas.height = padding + 52 + (image ? imageHeight + 36 : 0) + questionHeight + 36 + answerHeights.reduce((sum, height) => sum + height + 18, 0) + (summaryHeight ? summaryHeight + 18 : 0) + 60 + padding;
   context.fillStyle = "#fffdf7";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.textBaseline = "top";
@@ -106,16 +119,36 @@ export async function createQuestionImage(question, language, {
   questionLines.forEach(line => { context.fillText(line, padding, y); y += 54; });
   y += 36;
   answerLines.forEach((answer, index) => {
-    drawBox(context, padding, y, innerWidth, answerHeights[index], "#ffffff", "#d9dfd8");
-    drawBox(context, padding + 20, y + 20, 50, 50, "#eaf0e9");
-    context.fillStyle = "#245e46";
+    const key = question.answers[index].key;
+    const status = !result ? "" : key === question.correct ? "correct" : key === result.pick ? "wrong" : "";
+    const style = CAPTURE_ANSWER_STYLES[status];
+    drawBox(context, padding, y, innerWidth, answerHeights[index], style.fill, style.stroke);
+    if (status) {
+      context.lineWidth = 4;
+      context.strokeRect(padding, y, innerWidth, answerHeights[index]);
+    }
+    drawBox(context, padding + 20, y + 20, 50, 50, style.badge);
+    context.fillStyle = style.label;
     context.font = "700 28px Arial, sans-serif";
     context.fillText(answer.label, padding + 37, y + 28);
     context.fillStyle = "#18261f";
     context.font = "32px Arial, sans-serif";
     answer.lines.forEach((line, lineIndex) => context.fillText(line, padding + 92, y + 22 + lineIndex * 44));
+    if (status) {
+      context.fillStyle = style.label;
+      context.font = "700 40px Arial, sans-serif";
+      context.fillText(status === "correct" ? "✓" : "×", padding + innerWidth - 52, y + 22);
+    }
     y += answerHeights[index] + 18;
   });
+  if (summaryHeight) {
+    const style = CAPTURE_ANSWER_STYLES[isCorrect ? "correct" : "wrong"];
+    drawBox(context, padding, y, innerWidth, summaryHeight, style.fill, style.stroke);
+    context.fillStyle = style.label;
+    context.font = "700 32px Arial, sans-serif";
+    summaryLines.forEach((line, lineIndex) => context.fillText(line, padding + 24, y + 20 + lineIndex * 42));
+    y += summaryHeight + 18;
+  }
   context.fillStyle = "#647369";
   context.font = "20px Arial, sans-serif";
   context.fillText(content.sourceUrl, padding, y + 24);
