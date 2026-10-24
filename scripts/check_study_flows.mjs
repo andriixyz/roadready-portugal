@@ -173,6 +173,9 @@ for (const [mode, count] of [["quick", 10], ["exam", 30], ["review", 20], ["mist
   assert.equal(sizes.run(`sessionSize('${mode}')`), count);
   assert.equal(sizes.run(`selectForMode('${mode}').length`), count);
 }
+sizes.run("profile.questionProgress = {};");
+assert.equal(sizes.run("sessionSize('learn')"), 30, "New-question sets hold up to 30 unseen questions");
+assert.equal(sizes.run("selectForMode('learn').length"), 30);
 sizes.run(`questions = questions.slice(0, 1); location.hash = '#practice'; render();`);
 assert.equal(sizes.run("sessionSize('quick')"), 1);
 assert.ok(sizes.node("#mainContent").innerHTML.includes("1 question"));

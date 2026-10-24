@@ -1,5 +1,5 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261008-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261012-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261024-1";
 import { createQuizSession, setSessionNotSure, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261008-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20261012-1";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261008-1";
@@ -11,7 +11,7 @@ import { renderSpeedLimits } from "./speed-limits.js?v=20261008-2";
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const main = $("#mainContent");
-const SESSION_LIMITS = { quick: 10, review: 20, mistakes: 20, exam: 30, learn: 20, repair: 20 };
+const SESSION_LIMITS = { quick: 10, review: 20, mistakes: 20, exam: 30, learn: 30, repair: 20 };
 const suggestedExamPlan = { startedOn: "2026-10-07", examDate: "2026-10-27", language: "en" };
 let topicOrder = "weakest";
 let runFilter = "exam";
@@ -390,7 +390,7 @@ function renderDashboard() {
       </section>
 
       <div class="section-heading"><div><h2>${t("plan.todayWork")}</h2><p>${t("plan.todayHelp")}</p></div><a class="text-link" href="#practice">${t("dashboard.allModes")}</a></div>
-      <section class="daily-task-grid">${plan.tasks.map((task, index) => `<article class="task-card ${task.met ? "task-complete" : ""}"><div class="task-top"><span class="task-icon">${task.met ? "✓" : String(index + 1).padStart(2, "0")}</span><span class="mode-kicker">${t(task.met ? "plan.met" : "plan.pending")}</span></div><h3>${t(`plan.task.${task.key}`)}</h3><strong class="task-target">${task.key === "repair" ? t("plan.remaining", { count: formatNumber(task.target) }) : `${formatNumber(task.done)}/${formatNumber(task.target)}`}</strong><p>${t(`plan.taskHelp.${task.key}`, { language: planLanguage(plan) })}</p><button data-start="${task.mode}" ${task.met ? "disabled" : ""}>${t(`plan.start.${task.mode}`)} →</button></article>`).join("")}</section>
+      <section class="daily-task-grid">${plan.tasks.map((task, index) => `<article class="task-card ${task.met ? "task-complete" : ""}"><div class="task-top"><span class="task-icon">${task.met ? "✓" : String(index + 1).padStart(2, "0")}</span><span class="mode-kicker">${t(task.met ? "plan.met" : "plan.pending")}</span></div><h3>${t(`plan.task.${task.key}`)}</h3><strong class="task-target">${task.key === "repair" ? t("plan.remaining", { count: formatNumber(task.target) }) : `${formatNumber(task.done)}/${formatNumber(task.target)}`}</strong><p>${t(`plan.taskHelp.${task.key}`, { language: planLanguage(plan), size: formatNumber(SESSION_LIMITS.learn) })}</p><button data-start="${task.mode}" ${task.met ? "disabled" : ""}>${t(`plan.start.${task.mode}`)} →</button></article>`).join("")}</section>
       <div class="section-heading"><h2>${t("plan.evidenceTitle")}</h2><a class="text-link" href="#progress">${t("dashboard.detailedProgress")}</a></div>
       ${readinessMarkup(plan)}
       <details class="plan-roadmap"><summary>${t("plan.roadmap")}</summary>${planScheduleMarkup(plan)}</details>
@@ -424,7 +424,7 @@ function renderPractice() {
       <a class="speed-preview" href="#speed-limits"><span class="speed-preview-numbers" aria-hidden="true">50 <i>90</i> 100 <i>120</i></span><div><strong>${t("speed.previewTitle")}</strong><p>${t("speed.previewHelp")}</p></div><span class="text-link">${t("speed.previewOpen")} →</span></a>
       <a class="card saved-preview" href="#saved-questions"><div><strong>${t("saved.title")}</strong><p>${t("saved.previewHelp")}</p></div><span class="text-link">${t("saved.open", { count: formatNumber(savedQuestionCollection().length) })} →</span></a>
       <section class="mode-grid">
-        <article class="card mode-card featured"><span class="mode-badge">${t("practice.recommended")}</span><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("learn")) })}</span><h3>${t("plan.task.new")}</h3><p>${t("plan.learnDescription", { count: formatQuestionCount(plan.unseen), target: formatNumber(plan.newTarget) })}</p><button class="button button-accent" data-start="learn">${t("plan.start.learn")}</button></article>
+        <article class="card mode-card featured"><span class="mode-badge">${t("practice.recommended")}</span><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("learn")) })}</span><h3>${t("plan.task.new")}</h3><p>${t("plan.learnDescription", { count: formatQuestionCount(plan.unseen), target: formatNumber(plan.newTarget), size: formatNumber(SESSION_LIMITS.learn) })}</p><button class="button button-accent" data-start="learn">${t("plan.start.learn")}</button></article>
         <article class="card mode-card"><span class="mode-badge">${t("practice.available", { count: formatNumber(plan.readiness.unresolved) })}</span><span class="mode-kicker">${t("practice.repair")}</span><h3>${t("plan.task.repair")}</h3><p>${t("plan.repairDescription")}</p><button class="button button-primary" data-start="repair">${t("plan.start.repair")}</button></article>
         <article class="card mode-card"><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("quick")) })}</span><h3>${t("practice.quickTitle")}</h3><p>${t("practice.quickDescription")}</p><button class="button button-primary" data-start="quick">${t("practice.start")}</button></article>
         <article class="card mode-card"><span class="mode-badge">${t("practice.available", { count: formatNumber(s.due) })}</span><span class="mode-kicker">${t("practice.spaced")}</span><h3>${t("practice.dueTitle")}</h3><p>${t("practice.dueDescription")}</p><button class="button button-primary" data-start="review">${t("dashboard.reviewDue")}</button></article>
