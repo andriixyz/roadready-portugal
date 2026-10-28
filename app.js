@@ -1,5 +1,5 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261008-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261028-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261028-2";
 import { createQuizSession, setSessionNotSure, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261008-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20261012-1";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261008-1";
@@ -1006,7 +1006,7 @@ const shortcutsDialog = $("#shortcutsDialog");
 const ROUTE_KEYS = { KeyD: "dashboard", KeyP: "practice", KeyG: "progress", KeyR: "results", KeyL: "speed-limits" };
 const SHORTCUT_GROUPS = [
   ["shortcuts.anywhere", [["S", "shortcuts.startSuggested"], ["M", "shortcuts.startMock"], ["D", "nav.dashboard"], ["P", "nav.practice"], ["G", "nav.progress"], ["R", "nav.results"], ["L", "nav.speed"], [",", "nav.settings"], ["?", "shortcuts.title"]]],
-  ["shortcuts.question", [["1–4", "shortcuts.answer"], ["Enter", "shortcuts.continue"], ["← →", "shortcuts.navigate"], ["N", "quiz.notSure"], ["Esc", "quiz.exit"]]],
+  ["shortcuts.question", [["1–4", "shortcuts.answer"], ["Enter", "shortcuts.continue"], ["← →", "shortcuts.navigate"], ["N", "quiz.notSure"], ["C", "quiz.copyForChatGPT"], ["Shift+C", "quiz.copySolvedImage"], ["Esc", "quiz.exit"]]],
   ["shortcuts.results", [["A", "shortcuts.again"], ["S", "shortcuts.startSuggested"]]],
 ];
 
@@ -1036,6 +1036,10 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     event.preventDefault();
     location.hash = "practice";
+  } else if (event.code === "KeyC") {
+    // Pressing the button keeps the clipboard write inside this key press's user activation.
+    const button = $(event.shiftKey ? "#copySolvedImage" : "#copyQuestionImage");
+    if (button && !button.disabled) { event.preventDefault(); button.click(); }
   } else if (event.code === "KeyN" && !session.checked) {
     event.preventDefault();
     const notSure = $("#notSure");
