@@ -1,0 +1,12 @@
+{
+  "id": "bc-1112",
+  "imageNote": "Driver's view along a narrow residential street; a white ambulance with red markings stands on the right side of the carriageway facing the camera, as if emerging from a private way; a give-way sign stands further up on the left.",
+  "modelAnswer": "B",
+  "keyCheck": "agree",
+  "keyCheckNote": "",
+  "source": "ce",
+  "en": "An ambulance duly signalling an urgent mission keeps its priority even when it comes out of a private path: the exception in Article 65(1) covers only motorway access ramps and vehicles leaving a level crossing, not private ways, so I must stop and give way. The fact that it presents itself from the right changes nothing, and its coming from a private path does not let me advance. Código da Estrada, Articles 31(1)(a) and 65(1).",
+  "pt": "Uma ambulância que assinala adequadamente a marcha de urgência mantém a prioridade mesmo quando sai de um caminho particular: a exceção do artigo 65.º, n.º 1, abrange apenas os ramais de acesso a autoestradas e os veículos que saem de uma passagem de nível, não os caminhos particulares, pelo que devo parar e ceder passagem. O facto de se apresentar pela direita não altera nada, e sair de um caminho particular não me autoriza a avançar. Código da Estrada, artigos 31.º, n.º 1, alínea a), e 65.º, n.º 1.",
+  "ru": "Скорая помощь, должным образом обозначающая срочную поездку, сохраняет приоритет даже при выезде с частного пути: исключение в статье 65(1) касается только съездов на автомагистраль и выездов с железнодорожного переезда, но не частных путей, поэтому я должен остановиться и уступить дорогу. То, что она появляется справа, ничего не меняет, и её выезд с частного пути не даёт мне права ехать дальше. Código da Estrada, статьи 31(1)(a) и 65(1).",
+  "translationNotes": "RU renders \"caminho particular\" as \"отдельный путь\"/\"уединённый путь\"; it should say \"частный путь\"."
+}

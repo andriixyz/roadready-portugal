@@ -1,0 +1,12 @@
+{
+  "id": "bc-1110",
+  "imageNote": "Seen from a car on the main motorway carriageway: an ambulance with blue flashing lights is ahead on the right, on a lane separated from the carriageway by a solid line and a hatched chevron area near the camera; its lane converges into the carriageway just ahead.",
+  "modelAnswer": "B",
+  "keyCheck": "agree",
+  "keyCheckNote": "",
+  "source": "ce",
+  "en": "The ambulance is on a lane formed by widening the carriageway and separated from it by a solid line with hatched chevrons; just ahead that lane converges back into the main carriageway, so it serves vehicles entering the motorway, which there gain speed to merge into the main traffic flow. A deceleration lane would serve traffic leaving the road and would carry the ambulance away towards an exit ramp instead. Código da Estrada, Article 73(2).",
+  "pt": "A ambulância circula numa via formada pelo alargamento da faixa de rodagem e separada desta por linha contínua com zona hachurada; mais à frente essa via volta a convergir para a faixa principal, pelo que serve os veículos que entram na autoestrada, onde adquirem velocidade para se incorporarem na corrente de trânsito principal. Uma via de abrandamento serviria quem sai da via e afastaria a ambulância rumo à saída. Código da Estrada, artigo 73.º, n.º 2.",
+  "ru": "Скорая движется по полосе, образованной расширением проезжей части и отделённой от неё сплошной линией со штриховкой; чуть впереди эта полоса снова сливается с основной проезжей частью, поэтому она служит машинам, въезжающим на автомагистраль, чтобы набрать скорость и встроиться в основной поток. Полоса торможения служила бы тем, кто покидает дорогу, и увела бы скорую к съезду. Código da Estrada, статья 73(2).",
+  "translationNotes": "EN option A \"Of relaxation.\" and RU option A \"Расслабления.\" mistranslate \"De abrandamento\" (the deceleration lane); they should say \"Deceleration lane.\" and \"Замедления.\"."
+}

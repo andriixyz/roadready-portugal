@@ -1,0 +1,12 @@
+{
+  "id": "bc-1116",
+  "imageNote": "Driver's view of a rural two-lane road; a red car travels ahead in the same lane. The scene suggests following traffic on a single carriageway, with no signs or markings that change the answer.",
+  "modelAnswer": "B",
+  "keyCheck": "agree",
+  "keyCheckNote": "",
+  "source": "ce",
+  "en": "The Código da Estrada forbids drivers from travelling at a speed so low that it unjustifiably hinders the other users of the road, and punishes that violation with a fine of 60 to 300 euros. A car crawling along a rural road like the one in the picture without justification would breach that rule, so the statement is true. Código da Estrada, Articles 26(1) and 26(2).",
+  "pt": "O Código da Estrada proíbe os condutores de transitar em marcha cuja lentidão cause embaraço injustificado aos restantes utentes da via e pune essa violação com coima de 60 a 300 euros. Um automóvel que avance lentamente numa estrada como a da imagem, sem justificação, infringe essa regra, pelo que a afirmação é verdadeira. Código da Estrada, artigo 26.º, n.ºs 1 e 2.",
+  "ru": "Кодекс дорожного движения запрещает водителям двигаться с такой малой скоростью, которая без обоснования создаёт помехи остальным участникам движения, и наказывает за это нарушение штрафом от 60 до 300 евро. Медленно едущий без обоснования автомобиль на дороге, как на изображении, нарушил бы это правило, поэтому утверждение верно. Código da Estrada, статьи 26(1) и 26(2).",
+  "translationNotes": "EN \"Idling\" and RU \"Холостые ходы\" mistranslate \"circulação em marcha lenta\", which means driving at an abnormally slow speed, not stationary idling; \"embarrassment\"/\"неловкое положение\" should be \"hindrance\"/\"помехи\" (embaraço = obstruction)."
+}

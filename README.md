@@ -2,6 +2,8 @@
 
 English- and Russian-language study app for the Portuguese IMT Category B theory exam, with the Portuguese source wording available for every question.
 
+For development and future agent sessions, see [AGENTS.md](AGENTS.md) and the [project reference](documentation/md/PROJECT.md).
+
 ## Prepare for an exam in 20 days
 
 The dashboard starts with an **English preparation target of 27 October 2026**, twenty days after 7 October. This is a tentative study date, not a booking. Change the date and mock language under **Your profile → Your exam target**; the saved target syncs to linked devices and is included in backups.
@@ -39,6 +41,8 @@ Selecting an answer in any question mode immediately shows whether it was correc
 
 All question modes support **Previous question**, **Next question**, and numbered shortcuts. You can skip a question and return to it later; checked answers and feedback stay in the session. Practice answers count toward progress only once, as soon as you answer; mock answers count on submission. Mocks have **no time limit** and never submit automatically; their timer shows elapsed time and keeps running across navigation. At the end, **Return to unanswered** takes you to skipped questions before submitting. Use the left/right arrow keys to navigate, number keys 1–4 to answer, and Enter to continue.
 
+The whole study loop also works from the keyboard. Press **?** (or the **Keyboard shortcuts** link in the sidebar) for the list: **S** starts the suggested session, **M** a mock exam, **D/P/G/R/L** open Dashboard, Practice, Progress, Results and Speed limits, and **,** opens Settings. During a question, **N** toggles Not sure and **Esc** exits (with the usual leave confirmation); on the results screen **A** practises again. Letter shortcuts use physical keys, so they also work with a Russian layout, and they are ignored while typing in a field or holding Ctrl/Cmd/Alt.
+
 Check **Not sure** before choosing an answer to save the question even if you get it right. The mark locks with your first answer. Open **Not sure & mistakes** from Dashboard or Practice to browse these questions together with every question you have answered incorrectly, including past mistakes. Each question shows why it was saved; it stays in the collection after later correct answers.
 
 The collection saves when you answer, including in unfinished mocks; unanswered mock questions join it only when submitted as wrong. It is included in backups and private device sync. Browsing the collection does not record answers. Erasing study progress also clears it.
@@ -74,7 +78,9 @@ Image clipboard access needs a supported browser and HTTPS (or localhost). If it
 - `npm run check` validates all 3,910 IDs, the English/Portuguese corpus, 18,931 Russian fields, answer keys, and every interface translation key.
 - `npm run check:content` verifies the reviewed corrections, explanation coverage, and preservation of the Portuguese wording and answer keys.
 
-Reviewed corrections are matched against the preserved Portuguese wording in `scripts/reviewed-content.mjs`. Detailed explanations appear only for questions with reviewed reasoning and a linked source. Other questions show the study-key answer and explicitly state that a detailed explanation has not yet been reviewed. Broad topic text is no longer presented as a question explanation; the whole corpus has not been manually reviewed.
+Reviewed corrections are matched against the preserved Portuguese wording in `scripts/reviewed-content.mjs`. Detailed explanations appear only for questions with reviewed reasoning and a linked source, or with a note that the answer rests on general driving knowledge rather than a specific article. Other questions show the study-key answer and explicitly state that a detailed explanation has not yet been reviewed. Broad topic text is no longer presented as a question explanation; the whole corpus has not been manually reviewed.
+
+To review the whole bank question by question with an AI coding agent, follow [review/ZCODE.md](review/ZCODE.md): `npm run review:next` hands out one packet per question (Portuguese original, translations, study key, image and article hints), agents write one checked result each using the local law snapshots in `review/law/`, and `npm run review:import` adds the agreed explanations. Disagreements with the study key are held for a second opinion.
 
 The Russian overlay is loaded only when Russian is selected, which keeps the initial mobile download smaller. The app language and the question language are stored separately: the full interface supports English and Russian, while each question can be viewed in English, Russian, or the Portuguese original.
 
@@ -97,6 +103,16 @@ rtk npm run check:verification   # validates the corpus, sources and all cached 
 The audit command needs a Python interpreter with `pdfplumber`, `pypdf`, Pillow and NumPy. In Codex, use the bundled Python runtime returned by `load_workspace_dependencies`; invoke that interpreter directly with `scripts/audit_imt_pdfs.py` if the system `python3` lacks these packages. Routine app use and packaging still have no npm dependencies.
 
 Verification is stored separately from the translated corpora, so the audit does not modify question IDs, wording, answer order, answer keys or the Russian overlay. Changed Portuguese questions invalidate the old proof in the browser; missing/stale metadata leaves studying available with an unavailable label. Packaging also rejects image files changed since the audit. Refresh served version references when publishing a new audit snapshot.
+
+To watch for changes between audits, run this weekly:
+
+```sh
+rtk npm run monitor:imt
+```
+
+The monitor reads the live index and downloads every listed driver PDF, comparing its SHA-256 hash and URL with the committed audit. It detects replacements at the same URL, added/removed numbered groups and changed links. It saves the latest result in ignored `tmp/imt-monitor/latest.json`; it never replaces the audit baseline or changes study questions. Exit codes are **0** for unchanged PDFs, **1** for changes requiring review and **2** for an incomplete/failed check. Ordinary page banners do not trigger a PDF-change alert. A changed file may contain only PDF metadata changes; inspect it and refresh the comparison before accepting a new snapshot.
+
+Schedule this command with a weekly Codex follow-up or another scheduler. Local Codex checks need the computer on, the app running and permission to download the public IMT files. `rtk npm run check:imt-monitor` tests change detection and failure handling without network access. Monitoring covers the public driver PDFs, not legal updates elsewhere on IMT's site.
 
 ## Progress storage and cross-device sync
 

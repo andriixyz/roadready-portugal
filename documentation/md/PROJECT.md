@@ -56,7 +56,7 @@ Limits shrink with availability. Empty review/mistakes modes show a toast withou
 
 `picks` holds selected choices; `answers` holds checked answers in every mode. `chooseAnswer()` selects and immediately checks the answer, records practice progress once, rerenders feedback, and focuses/scrolls it into view. It never navigates or submits. All checked answers lock, including mocks, preserving the first attempt after the key is revealed. Navigating restores the selection and checked feedback. `firstUnansweredIndex()` uses `answers`; skipped questions remain unanswered until selected. The transition helpers still support unchecked drafts, but the UI checks within the same click/key handler.
 
-`session.notSure[index]` holds the checkbox state independently for each question; navigation, language changes and sync renders preserve it. The full Not sure panel is a native checkbox label, so its heading, help text and padding toggle the mark; keyboard users can focus the checkbox and press Space. `setSessionNotSure()` accepts changes only before the answer is checked. Checked answers include `notSure` without changing correctness or scoring. Uncertain correct answers and all checked wrong answers save immediately to `profile.savedQuestions`, including in unfinished mocks. Submitted unanswered mock items are also saved as mistakes. Practice progress still records on checking; mock progress/activity still waits for submission.
+`session.notSure[index]` holds the checkbox state independently for each question; navigation, language changes and sync renders preserve it. The full Not sure panel is a native checkbox label, so its heading, help text and padding toggle the mark; keyboard users can focus the checkbox and press Space. The `N` shortcut toggles the same checkbox. `setSessionNotSure()` accepts changes only before the answer is checked. Checked answers include `notSure` without changing correctness or scoring. Uncertain correct answers and all checked wrong answers save immediately to `profile.savedQuestions`, including in unfinished mocks. Submitted unanswered mock items are also saved as mistakes. Practice progress still records on checking; mock progress/activity still waits for submission.
 
 The read-only `#saved-questions` collection is linked from Dashboard and Practice, with 20 expandable questions per page, source IDs, images, all choices, reason labels and EN/RU/PT wording selection. It neither starts a quiz nor records attempts. Saved reasons accumulate by question ID and never disappear after later correct answers. Normalization backfills every legacy question with `wrong > 0`, independently of the stricter mistake-clinic/repair queues. It preserves unknown IDs while displaying only questions in the loaded bank. No removal or further study workflow is implemented.
 
@@ -67,6 +67,8 @@ Mocks have no time limit or automatic submission. Their timer derives `elapsedSe
 Completed quizzes retain `session.result`; route, language and sync renders keep showing results until the user leaves or starts again. Missed-question review includes the image, source ID, selected/unanswered label, study-key answer and feedback. Completion focuses the result heading and scrolls to the top, unless Settings is open. Later renders do not repeat that completion action.
 
 At phone widths (720 px or less), the question text appears above the full road image, and Previous/Next, the answered count and the collapsible question grid follow the answers and primary action. The timer/counter stays sticky. Crossing the breakpoint moves the existing DOM nodes so keyboard order follows the layout without rerendering or changing session state; desktop keeps navigation above the card and the question beside the image.
+
+Global keyboard shortcuts live in the document `keydown` handler in `app.js`; `SHORTCUT_GROUPS` drives the `?` dialog (`#shortcutsDialog`, a native `<dialog>`), so add new shortcuts there too. Letter shortcuts match `event.code` so they work under a Russian layout; they are ignored in form fields, with Ctrl/Cmd/Alt, and while Settings or the shortcuts dialog is open. Route keys and Esc go through the normal hash render, so an active session still asks for confirmation before leaving.
 
 Leaving an unfinished quiz requires confirmation, including browser Back. Cancel restores `#quiz` with the same session. Reload/close requests the browser's leave warning. Confirmed departure discards the in-memory session; saved checked practice progress remains.
 
@@ -124,7 +126,7 @@ The snapshot contains **3,910 questions across 16 topics**, **18,931 Russian fie
 
 All paths above are under `public/data/`. The runtime attaches Russian fields by ID/answer key when needed. It validates all overlay count/IDs, text/explanation fields and unique answer keys before mutating any question, preserving base question/choice order. The offline data check additionally verifies completeness metadata and the SHA-256 source hash. UI translations are separate dictionaries in `i18n.js`, with English fallback, placeholder interpolation and Russian plural helpers.
 
-The study key comes from Bom Condutor. The app separately links 14 IMT PDF groups; it does not treat those links as an official solution key. **Only `bc-1165` has a reviewed detailed explanation in this snapshot.** All other feedback explicitly says detailed reasoning has not been reviewed. `scripts/reviewed-content.mjs` matches corrections against preserved Portuguese phrases; reviewed reasoning additionally matches the exact question/options/key and carries a source URL.
+The study key comes from Bom Condutor. The app separately links 14 IMT PDF groups; it does not treat those links as an official solution key. **Only `bc-1165` has a reviewed detailed explanation in this snapshot.** All other feedback explicitly says detailed reasoning has not been reviewed. `scripts/reviewed-content.mjs` matches corrections against preserved Portuguese phrases; reviewed reasoning in `scripts/reviewed-explanations.json` additionally matches the exact question/options/key/image and carries an official source URL and article citation. Entries with source `general` (vehicle physics, physiology, first aid) have no rule link or citation; the app shows a general-knowledge note in place of the link.
 
 ### IMT PDF comparison
 
@@ -138,6 +140,10 @@ Quiz questions and Sources show separate full/text-only/difference/unconfirmed r
 
 `rtk npm run check:verification` checks both PT/EN fingerprints, all 3,910 local image hashes, source/location integrity, stale proof rejection, summary totals and the independent answer/translation scope. The build runs its asset validation after image preparation, so changed images cannot ship with stale proof. To refresh: `rtk npm run audit:imt:fetch`, then `rtk npm run audit:imt` (or the bundled Python executable with `scripts/audit_imt_pdfs.py`), then the verification/content/data checks. Advance the audit fetch version in `app.js` when publishing a new snapshot. Cached PDF/extraction evidence is not packaged.
 
+`rtk npm run monitor:imt` is the separate periodic freshness check. `scripts/monitor_imt_pdfs.mjs` discovers numbered driver PDFs from the live index and sequentially downloads their full bytes, comparing SHA-256 hashes, listed URLs, redirect destinations and added/removed groups against `public/data/imt-verification.json`. It makes no conditional requests based on server dates/ETags. Page HTML hashes are retained as evidence but ordinary page edits alone do not mark the PDFs changed. Missing/unrecognized links, unsafe sources, failed downloads and non-PDF responses produce an error rather than an unchanged result. Group failures do not stop the remaining downloads.
+
+The monitor atomically replaces ignored `tmp/imt-monitor/latest.json`, recording `checkedAt`, the baseline `auditedAt`, sources, changes and errors. `observationChanged` compares meaningful results with the previous run, ignoring check timestamps and page banners; it can distinguish repeated findings from new changes or recovery. Exit codes: 0 unchanged, 1 changed, 2 error/incomplete. The committed audit, corpora and `tmp/imt-audit/` evidence remain untouched. PDF byte changes still require content review, because metadata-only edits also change the hash. Schedule weekly using a local Codex follow-up with the app/computer running and network permission, or an external scheduler. `rtk npm run check:imt-monitor` covers replacements at the same URL, group additions/removals, link/redirect changes, banner noise and failure handling with offline fixtures. These checks do not monitor road-law changes on other pages.
+
 For reviewed translation/explanation changes, edit the reviewed-content logic and run:
 
 ```sh
@@ -147,6 +153,21 @@ rtk npm run check:content
 ```
 
 `explain` validates the existing RU overlay's source hash and answer identities before updating EN/PT feedback, reviewed EN/RU wording and RU feedback together. It then updates the hash to the newly written EN content. It requires an existing matching overlay; it is not the initial corpus-generation command.
+
+### Question-by-question review queue
+
+`review/` prepares a bulk explanation review by external agents (ZCode with a fast model was the intended runner). [`review/ZCODE.md`](../../review/ZCODE.md) is the orchestrator's loop and [`review/AGENT.md`](../../review/AGENT.md) the per-question instructions. `scripts/review_queue.mjs` provides:
+
+| Command | Effect |
+| --- | --- |
+| `next [n] [--shard i/n]` | Writes and lists packets for questions with neither a result file nor a current reviewed explanation |
+| `check [id…]` | Validates result files: answer keys, key-check note, source key, official `sourceUrl`, EN/PT/RU length and per-language citation (none for `general`) |
+| `status` | Counts valid/invalid results, key checks, sources and per-topic progress |
+| `import [--caution] [--reviewer name]` | Rebuilds the importer-owned entries of `reviewed-explanations.json` from valid results, computing fingerprints and image hashes; writes `review/import-report.md` |
+
+Packets (ignored `review/queue/`) contain the Portuguese original, EN/RU machine translations, study key, image path, topic-specific article hints and a JSON template. Results in `review/results/<id>.json` are agent output. `review/law/` holds snapshots of the Código da Estrada, Regulamento de Sinalização do Trânsito, RHLC, Lei 18/2007 and road-related Código Penal articles, with one `## Artigo` heading per article, plus a sign-code index; each file names its official source and snapshot date. The Código da Estrada snapshot inserts the article 27 table from [SPEED-LIMITS.md](SPEED-LIMITS.md).
+
+Import publishes only results that agree with the study key. Disagreements and unsure results are held in the report for a second opinion; `--caution` imports the remaining ones with the caution label. Hand-written entries (no `reviewer`) are never replaced. Translation notes are reported, not applied. After importing, run `rtk npm run explain`, the content/data checks and `rtk npm run check:review`, advance the `questions-en.json`/`questions-ru.json` fetch versions in `app.js`, then complete the normal release checks. Results are model output: spot-check imported explanations, especially citations, before relying on them.
 
 For an intentional full corpus refresh, the dependency order is:
 

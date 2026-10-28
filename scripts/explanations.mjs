@@ -1,9 +1,10 @@
-import { hasReviewedExplanation, RIGHT_TURN_SOURCE, studyExplanation } from "./reviewed-content.mjs";
+import { hasExplanationCaution, hasReviewedExplanation, reviewedExplanationSource, studyExplanation } from "./reviewed-content.mjs";
 
 export function addExplanations(questions) {
   return questions.map((question) => {
-    const { explanationSource: previousSource, ...rest } = question;
+    const { explanationSource: previousSource, explanationCaution: previousCaution, ...rest } = question;
     const reviewed = hasReviewedExplanation(question);
+    const source = reviewedExplanationSource(question);
     return {
       ...rest,
       explanation: {
@@ -11,7 +12,8 @@ export function addExplanations(questions) {
         pt: studyExplanation(question, "pt"),
       },
       explanationReviewed: reviewed,
-      ...(reviewed ? { explanationSource: RIGHT_TURN_SOURCE } : {}),
+      ...(source ? { explanationSource: source } : {}),
+      ...(hasExplanationCaution(question) ? { explanationCaution: true } : {}),
     };
   });
 }

@@ -1,0 +1,12 @@
+{
+  "id": "bc-1103",
+  "imageNote": "Village street seen from the driver's seat; a white ambulance van is stopped on the right side of the road ahead, facing the driver.",
+  "modelAnswer": "A",
+  "keyCheck": "agree",
+  "keyCheckNote": "",
+  "source": "ce",
+  "en": "An ambulance that duly signals its urgent mission with its special lights and siren has priority over all other traffic, so I must give way, even though it is approaching from the right side of the road as here. Article 64(1) covers vehicles on urgent service and Article 65(1) obliges every other driver to yield to them. Código da Estrada, Articles 64(1) and 65(1).",
+  "pt": "Uma ambulância que assinala adequadamente a marcha de urgência, com os seus avisadores luminosos e sonoros especiais, tem prioridade sobre os restantes utentes, pelo que devo ceder-lhe a passagem, mesmo quando avança pela direita, como aqui se vê. O artigo 64.º, n.º 1, define os veículos em serviço de urgência e o artigo 65.º, n.º 1, obriga qualquer condutor a ceder-lhes a passagem. Código da Estrada, artigos 64.º, n.º 1, e 65.º, n.º 1.",
+  "ru": "Скорая помощь, которая должным образом обозначает срочную поездку специальными световыми и звуковыми сигналами, имеет преимущество перед остальными участниками движения, поэтому я обязан уступить ей дорогу, даже когда она движется справа, как видно здесь. Статья 64(1) определяет транспортные средства на срочной службе, а статья 65(1) обязывает всех остальных водителей уступить им дорогу. Código da Estrada, статьи 64(1) и 65(1).",
+  "translationNotes": "EN question \"signals the emergency route\" means \"signals that it is on an urgent mission\"; RU question likewise says \"indicates the emergency route\" and RU option B is cut short (\"Я не должен уступать дорогу.\")."
+}

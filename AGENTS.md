@@ -31,6 +31,7 @@ Open findings from the 7–8 October 2026 manual pass are in [documentation/md/Q
 | Speed-limit memory map, recall drill and legal sources | `speed-limits.js`; `documentation/md/SPEED-LIMITS.md` |
 | Layout, theme variables and responsive behavior | `styles.css`; page shell/settings in `index.html` |
 | Question content and reproducible corrections | `public/data/`; `scripts/reviewed-content.mjs`, `scripts/explanations.mjs`, translation scripts |
+| Bulk question review by external agents (packets, result checks, import) | `scripts/review_queue.mjs`; `review/ZCODE.md`, `review/AGENT.md`, law snapshots in `review/law/` |
 | IMT PDF comparison and verification labels | `question-verification.js`; `scripts/fetch_imt_pdfs.mjs`, `scripts/audit_imt_pdfs.py`; `documentation/md/IMT-AUDIT.md` |
 | Active database setup | `supabase/personal-sync.sql`; `supabase/schema.sql` is legacy reference only |
 | Static packaging and deployment checks | `scripts/build.mjs`; `.github/workflows/pages.yml` |
@@ -57,8 +58,9 @@ Run the existing checks relevant to a change:
 | Backup, profile schema, startup recovery | `rtk npm run check:backup`; also study/sync checks when shared fields change |
 | Merge rules, linking, cloud controller, reset | `rtk npm run check:sync` |
 | Capture or ChatGPT prompt | `rtk npm run check:capture` |
+| Review queue, result validation or import | `rtk npm run check:review`; after an import also `rtk npm run explain`, `rtk npm run check:content` and `rtk npm run check` |
 
-Before a release, run all eight check commands above and the build. For documentation-only changes, verify links and Git whitespace. UI changes also need browser checks: desktop and narrow mobile, EN/RU, keyboard navigation, settings focus, and any affected quiz flow. The Node checks use mocks and do not verify actual layout or browser permissions.
+Before a release, run all nine check commands above and the build. For documentation-only changes, verify links and Git whitespace. UI changes also need browser checks: desktop and narrow mobile, EN/RU, keyboard navigation, settings focus, and any affected quiz flow. The Node checks use mocks and do not verify actual layout or browser permissions.
 
 For browser QA, use synthetic progress on a separate origin and disable Supabase in a temporary app copy or mock its RPCs. Startup automatically creates a key and attempts sync. Do not import, reset or pair the user's real profile during testing.
 

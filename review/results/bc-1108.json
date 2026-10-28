@@ -1,0 +1,12 @@
+{
+  "id": "bc-1108",
+  "imageNote": "View from the driver's seat approaching a junction on a two-lane road; a red octagonal Stop sign (B2) stands on the right, with a white ambulance with red markings stopped on the right just beyond it.",
+  "modelAnswer": "C",
+  "keyCheck": "agree",
+  "keyCheckNote": "",
+  "source": "ce",
+  "en": "Even when it signals an urgent rescue mission with its special lights and siren, an emergency vehicle must halt before the mandatory stop sign, like the B2 sign visible here at the junction. Although Article 64(1) lets such drivers disregard traffic rules, Article 64(2)(b) expressly requires them to suspend their march before the stop sign, so this ambulance must stop every time. Código da Estrada, Article 64(2)(b).",
+  "pt": "Mesmo a assinalar adequadamente a marcha urgente com os avisadores especiais, o condutor de um veículo de socorro é obrigado a suspender a sua marcha perante o sinal de paragem obrigatória em cruzamento ou entroncamento, como o sinal B2 visível aqui à direita. A dispensa geral do artigo 64.º não abrange este caso, pelo que a ambulância deve parar sempre junto do sinal Stop. Código da Estrada, artigo 64.º, n.º 2, alínea b).",
+  "ru": "Даже обозначая срочную поездку специальными световыми и звуковыми сигналами, водитель машины скорой помощи обязан остановиться перед знаком обязательной остановки на перекрёстке — знак B2 виден здесь справа. Хотя статья 64(1) позволяет таким водителям отступать от правил, статья 64(2)(b) прямо требует остановиться перед знаком «Стоп», поэтому скорая должна останавливаться всегда. Código da Estrada, статья 64(2)(b).",
+  "translationNotes": "EN option A \"it signals a relief march\" is a literal mistranslation of \"assinala marcha de socorro\" (signals an urgent rescue mission); RU option A \"это сигнал о марше поддержки\" means \"support march\", not \"marcha de socorro\"."
+}

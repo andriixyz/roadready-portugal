@@ -1,12 +1,14 @@
 import { cp, mkdir, rm } from "node:fs/promises";
 import { ensureQuestionImages } from "./fetch_question_images.mjs";
 import { checkVerificationAssets } from "./check_verification.mjs";
+import { checkReviewedExplanationImages } from "./check_content.mjs";
 
 const root = new URL("../", import.meta.url);
 const dist = new URL("../dist/", import.meta.url);
 
 await ensureQuestionImages();
 await checkVerificationAssets();
+await checkReviewedExplanationImages();
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 

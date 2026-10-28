@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+
 // Corrections use the preserved Portuguese wording, never an English
 // machine translation or a broad topic. Both corpus generators apply them.
 export const REVIEWED_TRANSLATIONS = new Map([
@@ -45,6 +48,13 @@ export const REVIEWED_TRANSLATIONS = new Map([
   }],
 ]);
 
+// Wording fixes found while reviewing each question with its image. They may
+// cover only English or only Russian; the curated entries above take precedence.
+const QUESTION_REVIEW_TRANSLATIONS = JSON.parse(readFileSync(new URL("./reviewed-translations.json", import.meta.url), "utf8"));
+for (const [portuguese, wording] of Object.entries(QUESTION_REVIEW_TRANSLATIONS)) {
+  if (!REVIEWED_TRANSLATIONS.has(portuguese)) REVIEWED_TRANSLATIONS.set(portuguese, wording);
+}
+
 export function reviewedTranslation(portuguese, language, fallback) {
   return REVIEWED_TRANSLATIONS.get(portuguese)?.[language] || fallback;
 }
@@ -58,23 +68,55 @@ export function applyReviewedTranslations(question, language, target = question)
   return target;
 }
 
-export const RIGHT_TURN_SOURCE = "https://diariodarepublica.pt/dr/legislacao-consolidada/lei/2013-116041830";
-const rightTurnQuestion = "Ao mudar de direcção à direita no próximo entroncamento devo:";
-const rightTurnAnswer = "Aproximar-me, com a necessária antecedência e quanto possível, do limite direito da faixa de rodagem e efectuar a manobra no trajecto mais curto.";
-const rightTurnExplanation = {
-  en: "For this right turn, move towards the right edge in good time, then follow the shortest route. Option A places you by the centre line instead of the right edge. Código da Estrada, Article 43(1).",
-  pt: "Neste caso, prepare o desvio para a direita junto ao bordo direito e siga o percurso mais curto. A opção A coloca o veículo junto ao eixo, em vez do bordo direito. Código da Estrada, artigo 43.º, n.º 1.",
-  ru: "Для этого поворота направо заранее приблизьтесь к правому краю и выберите кратчайшую траекторию. Вариант A предлагает положение у осевой линии вместо правого края. Código da Estrada, статья 43(1).",
+// Question-specific explanations reviewed against the question image and the
+// current law. Each one is bound to the exact Portuguese wording, options, key
+// and image, so a later scrape that changes any of them falls back to the
+// unreviewed study-key text instead of asserting reasoning for another question.
+export const REVIEWED_EXPLANATIONS = JSON.parse(readFileSync(new URL("./reviewed-explanations.json", import.meta.url), "utf8"));
+export const EXPLANATION_SOURCES = REVIEWED_EXPLANATIONS.sources;
+
+// Reasoning normally links an official source and ends with its article
+// citation. "general" marks answers that rest on vehicle physics, physiology
+// or first aid rather than a legal article; they carry no rule link, so a
+// reviewer is never pushed to invent a citation.
+export const GENERAL_SOURCE = "general";
+export const OFFICIAL_SOURCE = /^https:\/\/([a-z0-9-]+\.)*(diariodarepublica\.pt|dre\.pt|imt-ip\.pt|ansr\.pt|inem\.pt|gov\.pt|eur-lex\.europa\.eu)\//;
+export const CITATION = {
+  en: /(Código da Estrada|Regulamento de Sinalização do Trânsito|Regulamento da Habilitação Legal para Conduzir|Código Penal|Decreto|Lei|Portaria).*?Articles? \d/,
+  pt: /artigos? \d+\.º/,
+  ru: /стать[яи] \d/,
 };
+export const PLACEHOLDER_EXPLANATION = /^(Study key answer|Resposta do material|Ответ по учебному ключу)/;
+
+export function explanationFingerprint(question) {
+  const identity = [question.id, question.text.pt, question.answers.map(({ key, pt }) => [key, pt]), question.correct, question.image];
+  return createHash("sha256").update(JSON.stringify(identity)).digest("hex");
+}
+
+function reviewedEntry(question) {
+  const entry = REVIEWED_EXPLANATIONS.questions[question.id];
+  return entry?.fingerprint === explanationFingerprint(question) ? entry : null;
+}
 
 export function hasReviewedExplanation(question) {
-  return question.text.pt === rightTurnQuestion && question.correct === "B" && question.answers.length === 2
-    && question.answers.find((answer) => answer.key === "A")?.pt === "Aproximar-me do limite esquerdo do eixo da faixa de rodagem e efectuar a manobra de modo a entrar na via que pretendo tomar pelo lado destinado ao seu sentido de circulação."
-    && question.answers.find((answer) => answer.key === question.correct)?.pt === rightTurnAnswer;
+  return Boolean(reviewedEntry(question));
+}
+
+// "caution" marks reviewed items whose study key looked wrong, outdated or
+// ambiguous; their explanation says so and the app labels them separately.
+export function hasExplanationCaution(question) {
+  return reviewedEntry(question)?.status === "caution";
+}
+
+export function reviewedExplanationSource(question) {
+  const entry = reviewedEntry(question);
+  if (!entry || entry.source === GENERAL_SOURCE) return undefined;
+  return entry.sourceUrl || EXPLANATION_SOURCES[entry.source];
 }
 
 export function studyExplanation(question, language, answers = question.answers) {
-  if (hasReviewedExplanation(question)) return rightTurnExplanation[language];
+  const reviewed = reviewedEntry(question);
+  if (reviewed) return reviewed[language];
   const correct = answers.find((answer) => answer.key === question.correct);
   const text = (correct?.[language] || correct?.en || correct?.pt || question.correct).trim();
   // Show only the study answer until the question has its own reviewed

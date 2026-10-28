@@ -1,0 +1,12 @@
+{
+  "id": "bc-1132",
+  "imageNote": "View from behind a truck on a road curving right: a white solid line runs along the right side of the lane in front of a guardrail, while dashed markings and a raised kerb on the left separate the oncoming carriageway.",
+  "modelAnswer": "A",
+  "keyCheck": "agree",
+  "keyCheckNote": "",
+  "source": "rst",
+  "en": "The white solid line runs along the right side of our lane, in front of the guardrail, while oncoming traffic uses a separate carriageway beyond the kerb on the left. Longitudinal markings either separate directions of traffic or delimit traffic lanes, and the duty to keep to the right of a continuous line (mark M1) applies only when it separates directions. Since this line does not lie between the two directions, it marks the boundary of the lane itself and must not be crossed; the carriageways are divided by the kerb, not by this line. Regulamento de Sinalização do Trânsito, Article 60(1).",
+  "pt": "A linha contínua branca corre junto ao lado direito da nossa via de trânsito, diante do guarda-corpos, enquanto o trânsito em sentido oposto circula noutra faixa de rodagem, para lá do lancil à esquerda. As marcas longitudinais separam sentidos de trânsito ou delimitam vias de trânsito, e o dever de transitar à direita da linha contínua (marca M1) só existe quando ela separa sentidos. Como esta linha não está entre os dois sentidos, faz o limite da própria via de trânsito e não pode ser pisada nem transposta; as faixas de rodagem são separadas pelo lancil, não por esta linha. Regulamento de Sinalização do Trânsito, artigo 60.º, n.º 1.",
+  "ru": "Сплошная белая линия проходит по правому краю нашей полосы перед ограждением, а встречный транспорт движется по отдельной проезжей части за бордюром слева. Продольная разметка либо разделяет направления движения, либо обозначает полосы, и обязанность держаться правее сплошной линии (разметка M1) действует, только когда она разделяет направления. Эта линия не находится между направлениями, поэтому она ограничивает саму полосу движения; проезжие части разделяет бордюр, а не эта линия. Regulamento de Sinalização do Trânsito, статья 60(1).",
+  "translationNotes": "RU question translates 'A linha contínua' as 'Твёрдая фраза' ('solid phrase') instead of 'сплошная линия' ('solid line'); RU option A 'Определяйте полосу движения' is an imperative ('determine the lane') instead of 'обозначает полосу движения' ('delimits a traffic lane')."
+}

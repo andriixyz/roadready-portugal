@@ -1,0 +1,12 @@
+{
+  "id": "bc-1123",
+  "imageNote": "Seen from inside a car on a motorway approach: a blue route panel announces IP1 Algarve and IP8 Beja 1000 m ahead, with a white round sign with a red border (C2, no circulation) on its top-left and an arrow bending left, while cones taper across the carriageway ahead.",
+  "modelAnswer": "A",
+  "keyCheck": "agree",
+  "keyCheckNote": "",
+  "source": "rst",
+  "en": "The white round sign with a red border placed on the route panel is sign C2, which forbids circulation in both directions on the road ahead, and the cones across the carriageway confirm the closure. Even though the panel announces the IP1 to the Algarve and the IP8 to Beja 1000 metres away, driving straight on would mean entering a road where traffic is prohibited; keeping right or slowing down does not lift that prohibition. Regulamento de Sinalização do Trânsito, Article 24.",
+  "pt": "O sinal circular de fundo branco com bordo vermelho colocado no painel de itinerário é o sinal C2, que proíbe a circulação em ambos os sentidos na via em frente, e os cones que fecham a faixa de rodagem confirmam o encerramento. Embora o painel anuncie o IP1 para o Algarve e o IP8 para Beja a 1000 metros, seguir em frente significaria entrar numa via onde é proibido circular; circular encostado à direita ou em velocidade especialmente reduzida não levanta essa proibição. Regulamento de Sinalização do Trânsito, artigo 24.º.",
+  "ru": "Круглый белый знак с красной каймой на панели маршрута — это знак C2, запрещающий движение в обоих направлениях по дороге впереди, и конусы, перегораживающие проезжую часть, подтверждают закрытие. Хотя панель указывает IP1 на Алгарве и IP8 на Бежу в 1000 метрах, движение прямо означало бы выезд на дорогу, где запрещено движение; правый край или особо пониженная скорость этот запрет не отменяют. Regulamento de Sinalização do Trânsito, статья 24.",
+  "translationNotes": "RU option B says \"поехать направо от дороги\" (drive off to the right of the road); it should say the driver keeps close to the right edge of the carriageway (\"у правого края проезжей части\")."
+}

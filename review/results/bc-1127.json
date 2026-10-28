@@ -1,0 +1,12 @@
+{
+  "id": "bc-1127",
+  "imageNote": "Driver's view on a divided road: on the left a vegetated median separates our carriageway from the opposite one, where a white car is visible. Ahead, a dark car runs close to the right edge line with a shoulder beyond it, and broken lane lines to the left divide the width into three same-direction lanes.",
+  "modelAnswer": "C",
+  "keyCheck": "agree",
+  "keyCheckNote": "",
+  "source": "ce",
+  "en": "The median on the left shows this carriageway serves only one direction of traffic, so it is not a two-way road. Its width is divided by two broken lane lines into three traffic lanes, each meant for a single line of vehicles, plus an edge line with a shoulder on the right. A traffic lane is a longitudinal zone of the carriageway intended for one line of vehicles. Código da Estrada, Article 1(h) and 1(u).",
+  "pt": "O canteiro central à esquerda mostra que esta faixa de rodagem só serve um sentido de trânsito, pelo que não é uma faixa com dois sentidos. A sua largura está dividida por duas linhas descontínuas em três vias de trânsito, cada uma destinada a uma única fila de veículos, além da linha de bordo com berma à direita. A via de trânsito é a zona longitudinal da faixa de rodagem destinada à circulação de uma única fila de veículos. Código da Estrada, artigo 1.º, alíneas h) e u).",
+  "ru": "Разделительная полоса слева показывает, что эта проезжая часть служит только одному направлению движения, то есть не является дорогой с двусторонним движением. Её ширина разделена двумя прерывистыми линиями на три полосы движения, каждая из которых предназначена для одного ряда транспортных средств, а справа идёт краевая линия с обочиной. Полоса движения — это продольная зона проезжей части, предназначенная для одного ряда транспортных средств. Código da Estrada, статья 1(h) и 1(u).",
+  "translationNotes": "EN question says \"The lane on which I drive\" but \"faixa de rodagem\" is the carriageway, not a lane; EN option A \"Two senses\" should be \"Two directions\". RU question says \"Полоса, по которой я езжу, следует\" — it should be \"Проезжая часть, по которой я еду, имеет\"; RU option A \"Два чувства\" should be \"Два направления\"."
+}

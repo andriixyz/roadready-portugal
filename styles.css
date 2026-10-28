@@ -207,6 +207,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .profile-button strong, .profile-button small { display: block; }
 .profile-button strong { font-size: 12px; }
 .profile-button small { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.shortcuts-button { margin-top: 6px; padding: 6px 5px; display: flex; gap: 10px; align-items: center; border: 0; background: transparent; color: var(--muted); font-size: 11px; text-align: left; cursor: pointer; }
+.shortcuts-button:hover { color: var(--ink); }
+kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; background: var(--surface-2); color: var(--ink); font: 700 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; }
+.shortcuts-dialog { width: min(520px, calc(100% - 32px)); max-height: 90vh; padding: 30px; border: 0; border-radius: 24px; background: var(--surface); color: var(--ink); box-shadow: 0 30px 90px rgba(0,0,0,.22); }
+.shortcuts-dialog::backdrop { background: rgba(20,31,25,.52); backdrop-filter: blur(5px); }
+.shortcuts-dialog h2 { margin: 0 0 8px; font: 500 26px Georgia, serif; }
+.shortcuts-dialog p { font-size: 12px; line-height: 1.5; }
+.shortcuts-body h3 { margin: 18px 0 8px; font-size: 13px; }
+.shortcuts-body dl { margin: 0; display: grid; gap: 6px; }
+.shortcuts-body dl div { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; }
+.shortcuts-body dt, .shortcuts-body dd { margin: 0; font-size: 12px; }
 
 .main-content { margin-left: var(--sidebar); min-height: 100vh; padding: 48px clamp(28px, 5vw, 78px) 70px; }
 .page { max-width: 1120px; margin: 0 auto; animation: pageIn 320ms ease both; }
@@ -423,6 +434,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .feedback p { margin: 8px 0 5px; color: var(--feedback-ink); }
 .feedback small { color: var(--muted); }
 .rule-source-link { display: block; width: fit-content; margin: 8px 0; }
+.rule-source-note { display: block; margin: 8px 0; color: var(--muted); }
 .question-verification { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin: 12px 0 18px; font-size: 11px; line-height: 1.5; }
 .verification-details { max-width: 100%; color: var(--muted); }
 .verification-details summary { padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; background: var(--surface, #fff); }
@@ -434,6 +446,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .verification-description p { margin: 8px 0; }
 .verification-answer { padding: 6px 0; color: var(--muted); }
 .verification-answer.is-reviewed { color: var(--green); }
+.verification-answer.is-caution { color: var(--red); }
 .verification-report { padding: 22px; margin-bottom: 22px; }
 .verification-report h2 { margin: 0 0 10px; font-size: 20px; }
 .verification-report p { color: var(--muted); font-size: 12px; line-height: 1.6; }

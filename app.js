@@ -1,5 +1,5 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261008-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261024-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261028-1";
 import { createQuizSession, setSessionNotSure, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261008-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20261012-1";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261008-1";
@@ -574,7 +574,9 @@ function bindStartButtons() {
 }
 
 function explanationSourceLink(question) {
-  return question.explanationSource ? `<a class="text-link rule-source-link" href="${escapeHtml(question.explanationSource)}" target="_blank" rel="noopener noreferrer">${t("quiz.ruleSource")} ↗</a>` : "";
+  if (question.explanationSource) return `<a class="text-link rule-source-link" href="${escapeHtml(question.explanationSource)}" target="_blank" rel="noopener noreferrer">${t("quiz.ruleSource")} ↗</a>`;
+  // Reviewed reasoning without a rule link rests on general driving knowledge.
+  return question.explanationReviewed === true ? `<span class="rule-source-note">${t("quiz.generalKnowledge")}</span>` : "";
 }
 
 function questionVerificationMarkup(question, showAnswerReview = false) {
@@ -582,8 +584,9 @@ function questionVerificationMarkup(question, showAnswerReview = false) {
   const status = proof?.status || "unavailable";
   const location = proof?.locations[0];
   const date = verificationAudit ? new Date(verificationAudit.auditedAt).toLocaleDateString(currentLocale()) : "";
-  const reviewed = question.explanationReviewed === true && Boolean(question.explanationSource);
-  return `<div class="question-verification"><details class="verification-details verification-${status}"><summary>${t(`verification.${status}.label`)}</summary><div class="verification-description"><p>${t(`verification.${status}.description`)}</p>${location ? `<a class="text-link" href="${escapeHtml(verificationPdfUrl(verificationAudit, location))}" target="_blank" rel="noopener noreferrer">${t(status === "matched" || status === "text-only" ? "verification.pdfLocation" : "verification.candidateLocation", { group: formatNumber(location.group), page: formatNumber(location.page), row: formatNumber(location.row) })} ↗</a>` : ""}${date ? `<p>${t("verification.date", { date })}</p>` : ""}<p>${t("verification.translations")}</p></div></details>${showAnswerReview ? `<span class="verification-answer ${reviewed ? "is-reviewed" : ""}">${t(reviewed ? "verification.answerReviewed" : "verification.answerUnreviewed")}</span>` : ""}</div>`;
+  const reviewed = question.explanationReviewed === true;
+  const caution = reviewed && question.explanationCaution === true;
+  return `<div class="question-verification"><details class="verification-details verification-${status}"><summary>${t(`verification.${status}.label`)}</summary><div class="verification-description"><p>${t(`verification.${status}.description`)}</p>${location ? `<a class="text-link" href="${escapeHtml(verificationPdfUrl(verificationAudit, location))}" target="_blank" rel="noopener noreferrer">${t(status === "matched" || status === "text-only" ? "verification.pdfLocation" : "verification.candidateLocation", { group: formatNumber(location.group), page: formatNumber(location.page), row: formatNumber(location.row) })} ↗</a>` : ""}${date ? `<p>${t("verification.date", { date })}</p>` : ""}<p>${t("verification.translations")}</p></div></details>${showAnswerReview ? `<span class="verification-answer ${caution ? "is-caution" : reviewed ? "is-reviewed" : ""}">${t(caution ? "verification.answerCaution" : reviewed ? "verification.answerReviewed" : "verification.answerUnreviewed")}</span>` : ""}</div>`;
 }
 
 function confirmLeaveSession() {
@@ -998,11 +1001,47 @@ function renderSources() {
 
 function showToast(message) { const toast = $("#toast"); toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2600); }
 
+const shortcutsDialog = $("#shortcutsDialog");
+// Letter shortcuts use physical key codes so they also work with a Russian keyboard layout.
+const ROUTE_KEYS = { KeyD: "dashboard", KeyP: "practice", KeyG: "progress", KeyR: "results", KeyL: "speed-limits" };
+const SHORTCUT_GROUPS = [
+  ["shortcuts.anywhere", [["S", "shortcuts.startSuggested"], ["M", "shortcuts.startMock"], ["D", "nav.dashboard"], ["P", "nav.practice"], ["G", "nav.progress"], ["R", "nav.results"], ["L", "nav.speed"], [",", "nav.settings"], ["?", "shortcuts.title"]]],
+  ["shortcuts.question", [["1–4", "shortcuts.answer"], ["Enter", "shortcuts.continue"], ["← →", "shortcuts.navigate"], ["N", "quiz.notSure"], ["Esc", "quiz.exit"]]],
+  ["shortcuts.results", [["A", "shortcuts.again"], ["S", "shortcuts.startSuggested"]]],
+];
+
+function openShortcuts() {
+  $("#shortcutsBody").innerHTML = SHORTCUT_GROUPS.map(([title, rows]) => `<section><h3>${t(title)}</h3><dl>${rows.map(([key, label]) => `<div><dt><kbd>${escapeHtml(key)}</kbd></dt><dd>${t(label)}</dd></div>`).join("")}</dl></section>`).join("");
+  shortcutsDialog.showModal();
+}
+
+function startSuggestedSession() {
+  void startSession(nextPlanMode() || "quick");
+}
+
 document.addEventListener("keydown", (event) => {
   if (!modal.hidden) { handleSettingsKey(event); return; }
-  if (!session || session.result || location.hash !== "#quiz") return;
+  if (shortcutsDialog.open || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target.closest("input, textarea, select, [contenteditable]")) return;
-  if (["1", "2", "3", "4"].includes(event.key)) {
+  if (event.key === "?" || (event.code === "Slash" && event.shiftKey)) { event.preventDefault(); openShortcuts(); return; }
+  if (event.code === "Comma") { event.preventDefault(); openSettings(); return; }
+  if (ROUTE_KEYS[event.code]) { event.preventDefault(); location.hash = ROUTE_KEYS[event.code]; return; }
+  const inQuiz = session && !session.result && location.hash === "#quiz";
+  if (!inQuiz) {
+    if (event.code === "KeyS") { event.preventDefault(); startSuggestedSession(); }
+    else if (event.code === "KeyM") { event.preventDefault(); void startSession("exam"); }
+    else if (event.code === "KeyA" && session?.result) { event.preventDefault(); void startSession(session.mode, session.topic); }
+    return;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    location.hash = "practice";
+  } else if (event.code === "KeyN" && !session.checked) {
+    event.preventDefault();
+    const notSure = $("#notSure");
+    notSure.checked = !notSure.checked;
+    setSessionNotSure(session, notSure.checked);
+  } else if (["1", "2", "3", "4"].includes(event.key)) {
     const q = session.questions[session.index];
     const answer = q.answers[Number(event.key) - 1];
     if (answer) { event.preventDefault(); chooseAnswer(answer.key); }
@@ -1081,6 +1120,8 @@ function handleSettingsKey(event) {
 }
 $("#openSettings").addEventListener("click", openSettings);
 $("#mobileSettings").addEventListener("click", openSettings);
+$("#openShortcuts").addEventListener("click", openShortcuts);
+shortcutsDialog.addEventListener("click", (event) => { if (event.target === shortcutsDialog) shortcutsDialog.close(); });
 $("#closeSettings").addEventListener("click", closeSettings);
 modal.addEventListener("click", (event) => { if (event.target === modal) closeSettings(); });
 document.addEventListener("focusin", (event) => {

@@ -1,0 +1,24 @@
+{
+ "schemaVersion": 1,
+ "reviewedAt": "2026-10-08",
+ "method": "seed",
+ "sources": {
+  "ce": "https://diariodarepublica.pt/dr/legislacao-consolidada/lei/2013-116041830",
+  "rst": "https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-regulamentar/1998-169035729",
+  "rhlc": "https://diariodarepublica.pt/dr/detalhe/decreto-lei/138-2012-178550",
+  "lei18-2007": "https://diariodarepublica.pt/dr/detalhe/lei/18-2007-520799",
+  "cp": "https://diariodarepublica.pt/dr/legislacao-consolidada/decreto-lei/1995-34437675"
+ },
+ "questions": {
+  "bc-1165": {
+   "fingerprint": "79c3cd78904f3aab78e82e4719b7a9fc382954dc03b42ff5d70d9a2e5bbccc38",
+   "imageSha256": "647fb4cab3e54f56d64c3bae4a99b05f536afa3315e14ba725bad491ec7ef00e",
+   "status": "reviewed",
+   "source": "ce",
+   "en": "For this right turn, move towards the right edge in good time, then follow the shortest route. Option A places you by the centre line instead of the right edge. Código da Estrada, Article 43(1).",
+   "pt": "Neste caso, prepare o desvio para a direita junto ao bordo direito e siga o percurso mais curto. A opção A coloca o veículo junto ao eixo, em vez do bordo direito. Código da Estrada, artigo 43.º, n.º 1.",
+   "ru": "Для этого поворота направо заранее приблизьтесь к правому краю и выберите кратчайшую траекторию. Вариант A предлагает положение у осевой линии вместо правого края. Código da Estrada, статья 43(1).",
+   "imageNote": "Two-lane road approaching a junction on the right."
+  }
+ }
+}

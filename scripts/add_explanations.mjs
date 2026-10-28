@@ -31,7 +31,7 @@ const refreshedText = JSON.stringify(payload);
 russian.metadata.sourceSha256 = sha256(refreshedText);
 russian.metadata.contentReviewedAt = payload.contentReviewedAt;
 russian.metadata.explanationSourceLanguage = "study key or reviewed question-specific explanation";
-russian.metadata.explanations = { version: 2, method: "Study key answer only unless a question-specific explanation has been reviewed" };
+russian.metadata.explanations = { version: 3, method: "Question-specific explanation reviewed with the question image and cited law; study key answer only where no matching review exists" };
 await writeFile(PATH, refreshedText);
 await writeFile(RUSSIAN_PATH, `${JSON.stringify(russian)}\n`);
 process.stdout.write(`Refreshed translations and study feedback for ${payload.questions.length} questions in EN/PT/RU.\n`);

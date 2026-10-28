@@ -1,0 +1,12 @@
+{
+  "id": "bc-1121",
+  "imageNote": "View from the driver's seat on a wet two-way road: roadworks with cones and a small breaker on the left, a loaded truck ahead on the right, oncoming traffic and mist in the distance.",
+  "modelAnswer": "C",
+  "keyCheck": "agree",
+  "keyCheckNote": "",
+  "source": "general",
+  "en": "Every driving decision takes into account what I can see and what I expect to happen next: here the wet surface, the roadworks cones on the left, the loaded truck ahead and the mist all call for anticipation. Signage and traffic volume are only two of the many factors involved, so the options limiting the decision exclusively to signage or to traffic are wrong. My decision is always influenced by the prediction I make.",
+  "pt": "Cada decisão ao conduzir tem em conta o que vejo e o que espero que aconteça: aqui, a faixa molhada, as obras sinalizadas com cones à esquerda, o camião carregado à frente e a neblina exigem antecipação. A sinalização e a intensidade do trânsito são apenas dois entre muitos fatores, pelo que as opções que os apresentam como únicos fatores estão erradas. A decisão é sempre influenciada pela previsão que faço.",
+  "ru": "Каждое решение за рулём учитывает то, что я вижу, и то, чего ожидаю: здесь мокрая дорога, дорожные работы с конусами слева, гружёный грузовик впереди и туман требуют заблаговременной оценки обстановки. Знаки и интенсивность движения — лишь два из многих факторов, поэтому варианты, сводящие решение только к ним, неверны. Решение всегда зависит от прогноза, который я делаю.",
+  "translationNotes": "RU option A narrows \"sinalização\" to \"указателей\" (directional signs); it should say \"знаков и сигналов\"."
+}

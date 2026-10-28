@@ -1,0 +1,12 @@
+{
+  "id": "bc-1109",
+  "imageNote": "View from inside a car on a road curving right: an ambulance with flashing beacons is on the right-hand lane of the carriageway itself, next to a blue pedestrian-crossing sign and a zebra marking; no separate exit lane is visible.",
+  "modelAnswer": "B",
+  "keyCheck": "agree",
+  "keyCheckNote": "",
+  "source": "ce",
+  "en": "A deceleration lane is a lane created by widening the carriageway so that vehicles leaving the road can slow down outside the main flow of traffic. In the picture the ambulance is driving on the ordinary right-hand lane of the carriageway itself, as the pedestrian crossing and its blue sign beside it confirm; there is no widened, separated exit lane under it. Código da Estrada, Article 1(r).",
+  "pt": "A via de abrandamento é uma via de trânsito resultante do alargamento da faixa de rodagem, destinada a permitir que os veículos que vão sair diminuam a velocidade fora da corrente de trânsito principal. Na imagem a ambulância circula na via de trânsito mais à direita da própria faixa de rodagem, como confirmam a passadeira e o sinal de peões ao lado; não há alargamento com via de saída separada. Código da Estrada, artigo 1.º, alínea r).",
+  "ru": "Полоса торможения — это полоса движения, образующаяся за счёт расширения проезжей части, чтобы съезжающие с дороги транспортные средства снижали скорость вне основного потока. На снимке скорая машина едет по обычной правой полосе самой проезжей части, что подтверждают пешеходный переход и его синий знак рядом; расширенной отделённой полосы съезда здесь нет. Código da Estrada, статья 1(r).",
+  "translationNotes": "EN \"slowdown path\" and RU \"замедленной траектории\" mistranslate \"via de abrandamento\", which is a deceleration lane (RU: полоса торможения) beside the carriageway, not a path or trajectory."
+}

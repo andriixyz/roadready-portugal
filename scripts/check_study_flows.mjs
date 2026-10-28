@@ -34,6 +34,7 @@ function harness(saved = null) {
     prepareVerificationAudit, getQuestionVerification, verificationPdfUrl,
     createQuizSession: (mode, selected, language, now = control.now) => quiz.createQuizSession(mode, selected, language, now),
     answersOnDay: (profile, date = new Date(control.now)) => activity.answersOnDay(profile, date),
+    createExamPlan: (today = new Date(control.now), ...args) => planning.createExamPlan(today, ...args),
     Date: ClockDate, getDeviceId: () => "test-device",
     confirm(message) { control.prompts.push(message); return control.allowLeave; },
     document: { querySelector: node, querySelectorAll: () => [], body: node("body"), documentElement: node("html"), addEventListener() {} },
