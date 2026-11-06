@@ -63,7 +63,7 @@ for (const mode of ["quick", "exam"]) {
   app.run(`session = createQuizSession("${mode}", questions, "en"); location.hash = "#quiz"; render(); chooseAnswer("A");`);
   if (mode === "quick") app.run('navigateQuestion(1); chooseAnswer("B")');
   const original = app.run("JSON.stringify(session)");
-  for (const route of ["dashboard", "practice", "progress", "sources", "speed-limits"]) {
+  for (const route of ["dashboard", "practice", "progress", "sources", "speed-limits", "offences", "distances"]) {
     app.location.hash = `#${route}`;
     app.listeners.get("hashchange")();
     assert.equal(app.location.hash, "#quiz", "Cancel must return the route to the quiz");

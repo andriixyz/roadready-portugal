@@ -171,7 +171,7 @@ const currentVehicle = () => VEHICLES.find((vehicle) => vehicle.id === state.veh
 const currentLimits = () => { const vehicle = currentVehicle(); return state.trailer && vehicle.trailer ? vehicle.trailer : vehicle.solo; };
 const deckDrills = () => DRILLS.filter((drill) => state.deck === "all" || drill.deck === state.deck);
 
-export function renderSpeedLimits(root, { t, escapeHtml, onPractice }, focusSelector) {
+export function renderSpeedLimits(root, { t, escapeHtml, onPractice, atlasNav = "" }, focusSelector) {
   const vehicle = currentVehicle();
   const towing = state.trailer && Boolean(vehicle.trailer);
   const limits = currentLimits();
@@ -230,6 +230,7 @@ export function renderSpeedLimits(root, { t, escapeHtml, onPractice }, focusSele
   // Re-rendering in place (clicks, language or sync) must not replay the page entry animation.
   const settled = Boolean(root.querySelector(".speed-page"));
   root.innerHTML = `<div class="page speed-page${settled ? " is-settled" : ""}">
+    ${atlasNav}
     <header class="speed-header"><div><span class="eyebrow">${t("speed.eyebrow")}</span><h1>${t("speed.title")}</h1><p>${t("speed.subtitle")}</p></div><button class="button button-ghost speed-print" type="button" data-speed-print><span aria-hidden="true">↓</span> ${t("speed.print")}</button></header>
     <nav class="speed-chapters" aria-label="${escapeHtml(t("speed.chaptersLabel"))}">${chapters.map(([id, target], index) => `<button type="button" data-speed-jump="${target}"><b>0${index + 1}</b>${t(`speed.chapter.${id}`)}</button>`).join("")}</nav>
 
@@ -282,7 +283,7 @@ export function renderSpeedLimits(root, { t, escapeHtml, onPractice }, focusSele
     <div class="speed-print-sheet"><h2>${t("speed.printTitle")}</h2>${fullTable(`${t("speed.defaults")} · ${unit}`, false)}<p>${t("speed.printContext")}</p><ul><li>${t("speed.print.shared")}</li><li>${t("speed.print.floor")}</li><li>${t("speed.print.endSign")}</li><li>${t("speed.print.moderate")}</li><li>${t("speed.print.severity")}</li></ul></div>
   </div>`;
 
-  const renderAgain = (focus) => renderSpeedLimits(root, { t, escapeHtml, onPractice }, focus);
+  const renderAgain = (focus) => renderSpeedLimits(root, { t, escapeHtml, onPractice, atlasNav }, focus);
   const reducedMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   root.querySelectorAll("[data-speed-jump]").forEach((button) => button.addEventListener("click", () => {
     const target = root.querySelector(`#${button.dataset.speedJump}`);

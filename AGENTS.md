@@ -29,6 +29,7 @@ Open findings from the 7–8 October 2026 manual pass are in [documentation/md/Q
 | Question PNGs, wrapping, image paths and ChatGPT prompt content | `question-capture.js` |
 | UI strings and plural/locale helpers | `i18n.js`; static `data-i18n*` attributes in `index.html` |
 | Speed-limit memory map, recall drill and legal sources | `speed-limits.js`; `documentation/md/SPEED-LIMITS.md` |
+| Offence levels, alcohol, points and sanctions; stopping/parking and other distances | `offences.js`, `distances.js`, shared drill `rule-drill.js`; switcher in `app.js`; `documentation/md/OFFENCES.md`, `documentation/md/DISTANCES.md` |
 | Layout, theme variables and responsive behavior | `styles.css`; page shell/settings in `index.html` |
 | Question content and reproducible corrections | `public/data/`; `scripts/reviewed-content.mjs`, `scripts/explanations.mjs`, translation scripts |
 | Bulk question review by external agents (packets, result checks, import) | `scripts/review_queue.mjs`; `review/ZCODE.md`, `review/AGENT.md`, law snapshots in `review/law/` |

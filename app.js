@@ -1,12 +1,14 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261008-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261028-2";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261106-1";
 import { createQuizSession, setSessionNotSure, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261008-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20261012-1";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261008-1";
 import { recordStudyActivity, answersOnDay, studyStreak } from "./study-activity.js?v=20261002-3";
 import { prepareVerificationAudit, getQuestionVerification, verificationPdfUrl } from "./question-verification.js?v=20261002-1";
 import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQuestions, unresolvedQuestions, OFFICIAL_EXAM, allowedErrors, runPassed, runWithinTime, summariseRuns } from "./exam-plan.js?v=20261010-1";
-import { renderSpeedLimits } from "./speed-limits.js?v=20261008-2";
+import { renderSpeedLimits } from "./speed-limits.js?v=20261106-1";
+import { renderOffences } from "./offences.js?v=20261106-1";
+import { renderDistances } from "./distances.js?v=20261106-1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -324,7 +326,15 @@ function planScheduleMarkup(plan) {
 }
 
 function setActiveRoute(route) {
-  $$("[data-route]").forEach((link) => link.classList.toggle("active", link.dataset.route === route || link.dataset.routeAlso === route));
+  $$("[data-route]").forEach((link) => link.classList.toggle("active", link.dataset.route === route || (link.dataset.routeAlso || "").split(" ").includes(route)));
+}
+
+// The three rule atlases share one switcher, so phones reach all of them from the single Rules tab.
+const RULE_ATLASES = [["speed-limits", "nav.speed"], ["offences", "nav.offences"], ["distances", "nav.distances"]];
+const TOPIC_LICENSING = "Títulos de condução, obtenção, revalidação, responsabilidade civil e criminal, contra-ordenações, cassação";
+const TOPIC_PARKING = "Paragem, estacionamento e cruzamento de veículos";
+function atlasNav(current) {
+  return `<nav class="atlas-switcher" aria-label="${escapeHtml(t("atlas.label"))}">${RULE_ATLASES.map(([route, key]) => `<a href="#${route}"${route === current ? ' aria-current="page"' : ""}>${t(key)}</a>`).join("")}</nav>`;
 }
 
 function render() {
@@ -346,7 +356,9 @@ function render() {
   else if (route === "progress") renderProgress();
   else if (route === "results") renderResults();
   else if (route === "sources") renderSources();
-  else if (route === "speed-limits") renderSpeedLimits(main, { t, escapeHtml, onPractice: () => { void startSession("quick", "Velocidade"); } });
+  else if (route === "speed-limits") renderSpeedLimits(main, { t, escapeHtml, atlasNav: atlasNav(route), onPractice: () => { void startSession("quick", "Velocidade"); } });
+  else if (route === "offences") renderOffences(main, { t, escapeHtml, atlasNav: atlasNav(route), locale: currentLocale(), onPractice: () => { void startSession("quick", TOPIC_LICENSING); } });
+  else if (route === "distances") renderDistances(main, { t, escapeHtml, atlasNav: atlasNav(route), locale: currentLocale(), onPractice: () => { void startSession("quick", TOPIC_PARKING); } });
   else if (route === "quiz" && session?.result) renderResult(session, session.result);
   else if (route === "quiz" && session) renderQuestion();
   else renderDashboard();
@@ -421,7 +433,11 @@ function renderPractice() {
     <div class="page">
       ${russianCorpusNotice()}
       <header class="page-header"><div><span class="eyebrow">${t("practice.eyebrow")}</span><h1>${t("practice.title")}</h1><p>${t("practice.subtitle")}</p></div><span class="date-chip">${t("practice.loaded", { questions: formatQuestionCount(questions.length) })}</span></header>
-      <a class="speed-preview" href="#speed-limits"><span class="speed-preview-numbers" aria-hidden="true">50 <i>90</i> 100 <i>120</i></span><div><strong>${t("speed.previewTitle")}</strong><p>${t("speed.previewHelp")}</p></div><span class="text-link">${t("speed.previewOpen")} →</span></a>
+      <nav class="atlas-previews" aria-label="${escapeHtml(t("atlas.label"))}">
+        <a class="speed-preview" href="#speed-limits"><span class="speed-preview-numbers" aria-hidden="true">50 <i>90</i> 100 <i>120</i></span><div><strong>${t("speed.previewTitle")}</strong><p>${t("speed.previewHelp")}</p></div><span class="text-link">${t("speed.previewOpen")} →</span></a>
+        <a class="speed-preview" href="#offences"><span class="speed-preview-numbers" aria-hidden="true">1·1 <i>2·2</i> 3·3</span><div><strong>${t("offence.previewTitle")}</strong><p>${t("offence.previewHelp")}</p></div><span class="text-link">${t("offence.previewOpen")} →</span></a>
+        <a class="speed-preview" href="#distances"><span class="speed-preview-numbers" aria-hidden="true">5 <i>25</i> 50 <i>m</i></span><div><strong>${t("distance.previewTitle")}</strong><p>${t("distance.previewHelp")}</p></div><span class="text-link">${t("distance.previewOpen")} →</span></a>
+      </nav>
       <a class="card saved-preview" href="#saved-questions"><div><strong>${t("saved.title")}</strong><p>${t("saved.previewHelp")}</p></div><span class="text-link">${t("saved.open", { count: formatNumber(savedQuestionCollection().length) })} →</span></a>
       <section class="mode-grid">
         <article class="card mode-card featured"><span class="mode-badge">${t("practice.recommended")}</span><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("learn")) })}</span><h3>${t("plan.task.new")}</h3><p>${t("plan.learnDescription", { count: formatQuestionCount(plan.unseen), target: formatNumber(plan.newTarget), size: formatNumber(SESSION_LIMITS.learn) })}</p><button class="button button-accent" data-start="learn">${t("plan.start.learn")}</button></article>
@@ -1003,9 +1019,9 @@ function showToast(message) { const toast = $("#toast"); toast.textContent = mes
 
 const shortcutsDialog = $("#shortcutsDialog");
 // Letter shortcuts use physical key codes so they also work with a Russian keyboard layout.
-const ROUTE_KEYS = { KeyD: "dashboard", KeyP: "practice", KeyG: "progress", KeyR: "results", KeyL: "speed-limits" };
+const ROUTE_KEYS = { KeyD: "dashboard", KeyP: "practice", KeyG: "progress", KeyR: "results", KeyL: "speed-limits", KeyO: "offences", KeyI: "distances" };
 const SHORTCUT_GROUPS = [
-  ["shortcuts.anywhere", [["S", "shortcuts.startSuggested"], ["M", "shortcuts.startMock"], ["D", "nav.dashboard"], ["P", "nav.practice"], ["G", "nav.progress"], ["R", "nav.results"], ["L", "nav.speed"], [",", "nav.settings"], ["?", "shortcuts.title"]]],
+  ["shortcuts.anywhere", [["S", "shortcuts.startSuggested"], ["M", "shortcuts.startMock"], ["D", "nav.dashboard"], ["P", "nav.practice"], ["G", "nav.progress"], ["R", "nav.results"], ["L", "nav.speed"], ["O", "nav.offences"], ["I", "nav.distances"], [",", "nav.settings"], ["?", "shortcuts.title"]]],
   ["shortcuts.question", [["1–4", "shortcuts.answer"], ["Enter", "shortcuts.continue"], ["← →", "shortcuts.navigate"], ["N", "quiz.notSure"], ["C", "quiz.copyForChatGPT"], ["Shift+C", "quiz.copySolvedImage"], ["Esc", "quiz.exit"]]],
   ["shortcuts.results", [["A", "shortcuts.again"], ["S", "shortcuts.startSuggested"]]],
 ];
