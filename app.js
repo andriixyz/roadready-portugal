@@ -1,5 +1,5 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261008-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261112-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261112-2";
 import { createQuizSession, setSessionNotSure, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261008-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20261012-1";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261008-1";
@@ -9,7 +9,7 @@ import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQue
 import { renderSpeedLimits } from "./speed-limits.js?v=20261106-1";
 import { renderOffences } from "./offences.js?v=20261106-1";
 import { renderDistances } from "./distances.js?v=20261106-1";
-import { renderRoadTrip, roadTripActive, resetRoadTrip, handleRoadTripKey } from "./road-trip.js?v=20261112-1";
+import { renderRoadTrip, roadTripActive, resetRoadTrip, handleRoadTripKey } from "./road-trip.js?v=20261112-2";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];

@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import {
   ROAD_TRIP, TRIP_DESTINATION, TRIP_MAX_QUESTIONS, createRoadTrip, answerRoadTrip, advanceRoadTrip, endRoadTrip, roadTripSummary,
   selectRoadTripQuestions, tripMultiplier, tripPaceBonus, tripStopIndex, emptyTripRecords, normaliseTripRecords, recordRoadTrip,
-  roadTripActive, handleRoadTripKey,
+  roadTripActive, handleRoadTripKey, tripCoverage, TRIP_REPAIR_QUESTIONS,
 } from "../road-trip.js";
+import {
+  LANE_WIDTH, STOP_GAP, BUMP_GAP, GATE_AHEAD, BOX, PYRAMID, laneX, createSceneState, sceneQuestion, stepScene, sceneryAt,
+  multiply, perspective, lookAt, transform,
+} from "../road-trip-3d.js";
 import { OFFICIAL_EXAM } from "../exam-plan.js";
 
 const bank = (count) => Array.from({ length: count }, (_, index) => ({
@@ -159,7 +163,7 @@ assert.deepEqual([0, 4, 5, 49, 50, 80].map(tripStopIndex), [0, 0, 1, 9, 10, 10])
   assert.equal(fatal.outcome, "crashed", "Parking cannot hide an outcome the last answer already decided");
 }
 
-// Question selection: no repeats, bounded size, and a lean towards missed and unseen questions.
+// Question selection sweeps the bank: a few repairs, then unseen questions, with no repeats.
 {
   const questions = bank(400);
   const profile = { questionProgress: {} };
@@ -169,12 +173,11 @@ assert.deepEqual([0, 4, 5, 49, 50, 80].map(tripStopIndex), [0, 0, 1, 9, 10, 10])
   assert.equal(selected.length, TRIP_MAX_QUESTIONS);
   assert.equal(new Set(selected).size, selected.length, "A trip never repeats a question");
   const index = (question) => Number(question.id.slice(1));
-  assert.equal(selected.filter((question) => index(question) < 100).length, 16, "About 30% come from questions last answered wrongly");
-  assert.equal(selected.filter((question) => index(question) >= 300).length, 21, "About 40% are unseen");
-  assert.equal(selected.filter((question) => index(question) >= 100 && index(question) < 300).length, 16);
+  assert.equal(TRIP_REPAIR_QUESTIONS, 13);
+  assert.equal(selected.filter((question) => index(question) < 100).length, 13, "At most a quarter repeats questions last answered wrongly");
+  assert.equal(selected.filter((question) => index(question) >= 300).length, 40, "Everything else is unseen while unseen questions remain");
+  assert.equal(selected.filter((question) => index(question) >= 100 && index(question) < 300).length, 0, "Correctly answered questions wait until the bank is covered");
 
-  const fresh = selectRoadTripQuestions(questions, { questionProgress: {} });
-  assert.equal(fresh.length, TRIP_MAX_QUESTIONS, "A new profile fills the trip from unseen questions");
   assert.equal(selectRoadTripQuestions(bank(6), { questionProgress: {} }).length, 6, "A small bank limits the trip");
   assert.equal(selectRoadTripQuestions([], { questionProgress: {} }).length, 0);
   let seed = 7;
@@ -183,6 +186,118 @@ assert.deepEqual([0, 4, 5, 49, 50, 80].map(tripStopIndex), [0, 0, 1, 9, 10, 10])
   seed = 7; const two = selectRoadTripQuestions(questions, profile, random).map((question) => question.id);
   assert.deepEqual(one, two, "Selection is reproducible with an injected random source");
   assert.equal(questions.length, 400, "Selection must not mutate the bank");
+}
+
+// Trip after trip reaches every question, across topics, before any right answer comes back.
+{
+  const questions = bank(400).map((question, index) => ({ ...question, topic: `topic-${index % 16}` }));
+  const profile = { questionProgress: {} };
+  assert.deepEqual(tripCoverage(questions, profile), { seen: 0, total: 400, remaining: 400, percent: 0, trips: 8 });
+  const first = selectRoadTripQuestions(questions, profile);
+  assert.equal(new Set(first.map((question) => question.topic)).size, 16, "A trip draws new questions from every topic");
+  let clock = Date.parse("2026-11-01T10:00:00Z");
+  const answer = (question, correct) => {
+    const current = profile.questionProgress[question.id] || { correct: 0, wrong: 0 };
+    profile.questionProgress[question.id] = {
+      correct: current.correct + (correct ? 1 : 0), wrong: current.wrong + (correct ? 0 : 1),
+      streak: correct ? (current.streak || 0) + 1 : 0, lastAnswer: new Date(clock += 60000).toISOString(),
+    };
+  };
+  const asked = new Set();
+  for (let tripNumber = 1; tripNumber <= 8; tripNumber++) {
+    const before = asked.size;
+    const selected = selectRoadTripQuestions(questions, profile);
+    assert.equal(selected.filter((question) => !asked.has(question.id)).length, Math.min(TRIP_MAX_QUESTIONS, 400 - before),
+      "A trip is made of unseen questions for as long as any remain");
+    for (const question of selected) {
+      asked.add(question.id);
+      answer(question, true);
+    }
+  }
+  assert.equal(asked.size, 400, "Eight flawless trips cover a 400-question bank");
+  assert.deepEqual(tripCoverage(questions, profile), { seen: 400, total: 400, remaining: 0, percent: 100, trips: 0 });
+  const oldest = [...questions].sort((a, b) => Date.parse(profile.questionProgress[a.id].lastAnswer) - Date.parse(profile.questionProgress[b.id].lastAnswer))
+    .slice(0, TRIP_MAX_QUESTIONS).map((question) => question.id).sort();
+  assert.deepEqual(selectRoadTripQuestions(questions, profile).map((question) => question.id).sort(), oldest,
+    "Once covered, the least recently answered questions return first");
+  questions.slice(0, 20).forEach((question) => answer(question, false));
+  const repair = selectRoadTripQuestions(questions, profile);
+  assert.equal(repair.length, TRIP_MAX_QUESTIONS);
+  assert.equal(repair.filter((question) => Number(question.id.slice(1)) < 20).length, 20, "With nothing unseen, every unresolved mistake joins the trip");
+  assert.equal(tripCoverage(questions.slice(0, 399).concat({ id: "new", answers: [], correct: "A" }), profile).percent, 99, "Coverage reads 100% only when complete");
+  assert.equal(tripCoverage([], profile).percent, 0);
+}
+
+// The 3D scene's simulation is pure: the car stops at a gate, only the study-key lane opens,
+// a wrong lane blocks the car until the player drives on, and a fast player never queues up gates.
+{
+  const run = (state, seconds, still = false) => { for (let step = 0; step < seconds * 60; step++) stepScene(state, 1 / 60, still); };
+  assert.deepEqual([0, 1, 2].map((lane) => laneX(lane, 3)), [-LANE_WIDTH, 0, LANE_WIDTH]);
+  assert.deepEqual([0, 1].map((lane) => laneX(lane, 2)), [-LANE_WIDTH / 2, LANE_WIDTH / 2]);
+
+  const state = createSceneState();
+  const first = sceneQuestion(state, 3);
+  run(state, 8);
+  const gate = state.gates[0];
+  assert.equal(gate.q, first);
+  assert.equal(gate.d, GATE_AHEAD);
+  assert.ok(Math.abs(state.d - (gate.d - STOP_GAP)) < .01, "The car waits at the stop line");
+  assert.equal(state.v, 0);
+  first.aim = 2;
+  run(state, 2);
+  assert.ok(Math.abs(state.x - laneX(2, 3)) < .05, "Steering moves the car into the aimed lane");
+  assert.ok(Math.abs(state.d - (gate.d - STOP_GAP)) < .01, "Steering alone never drives through");
+  assert.deepEqual(gate.open, [0, 0, 0]);
+
+  Object.assign(first, { pick: 2, correct: 0 });
+  run(state, 3);
+  assert.equal(gate.bumped, true, "A wrong lane ends at the barrier");
+  assert.ok(Math.abs(state.d - (gate.d - BUMP_GAP)) < .01);
+  assert.deepEqual(gate.open, [0, 0, 0], "No barrier opens for a wrong answer");
+  assert.equal(gate.cleared, false);
+  first.detour = true;
+  const second = sceneQuestion(state, 2);
+  run(state, 10);
+  assert.equal(gate.cleared, true, "Driving on leaves through the study-key lane");
+  assert.equal(state.gates.at(-1).q, second);
+  assert.ok(state.gates.at(-1).d >= gate.d + 30, "The next gate is built further up the road");
+  assert.ok(Math.abs(state.d - (state.gates.at(-1).d - STOP_GAP)) < .01);
+
+  const secondGate = state.gates.at(-1);
+  Object.assign(second, { pick: 1, correct: 1 });
+  run(state, 6);
+  assert.equal(secondGate.cleared, true, "The right lane opens at once");
+  assert.equal(secondGate.bumped, false);
+  assert.ok(secondGate.open[1] > .99 && secondGate.open[0] === 0, "Only the picked study-key lane opens");
+  assert.ok(state.v > 0, "The car keeps cruising while the feedback is read");
+  const cruised = state.d;
+  run(state, 2, true);
+  assert.ok(state.d - cruised < 12 && state.v === 0, "With reduced motion the car parks between gates");
+
+  const hasty = createSceneState();
+  const questions = [3, 2, 4, 3, 2].map((count) => {
+    if (hasty.q) Object.assign(hasty.q, { pick: 0, correct: 0, detour: true });
+    return sceneQuestion(hasty, count);
+  });
+  assert.equal(hasty.queue.length, 1, "Only the newest question waits for a gate");
+  run(hasty, 12);
+  assert.equal(hasty.gates.at(-1).q, questions.at(-1));
+  assert.ok(hasty.gates.length <= 2, "Skipped questions build no gates");
+  assert.ok(Math.abs(hasty.d - (hasty.gates.at(-1).d - STOP_GAP)) < .01);
+
+  assert.deepEqual(sceneryAt(12), sceneryAt(12), "Scenery is deterministic");
+  assert.ok(sceneryAt(3).every((item) => ["tree", "house", "bush", "pine", "lamp"].includes(item.kind) && Math.abs(item.side) === 1));
+  assert.equal(BOX.length, 36 * 8);
+  assert.equal(PYRAMID.length, 12 * 8);
+  const identity = transform(0, 0, 0);
+  const scaled = transform(1, 2, 3, 2, 2, 2);
+  assert.ok(multiply(identity, scaled).every((value, index) => Math.abs(value - scaled[index]) < 1e-9), "Multiplying by the identity changes nothing");
+  const turned = transform(0, 0, 0, 1, 1, 1, 0, Math.PI / 2);
+  assert.ok(Math.abs(turned[1] - 1) < 1e-9 && Math.abs(turned[0]) < 1e-9, "A barrier arm swings upwards");
+  const view = lookAt([0, 0, 5], [0, 0, 0]);
+  assert.ok(Math.abs(view[14] + 5) < 1e-9, "The camera sits behind what it looks at");
+  const projected = multiply(perspective(Math.PI / 2, 1, 1, 100), view);
+  assert.ok(projected[15] > 0);
 }
 
 // Device-local records.
@@ -202,4 +317,4 @@ assert.deepEqual([0, 4, 5, 49, 50, 80].map(tripStopIndex), [0, 0, 1, 9, 10, 10])
 assert.equal(roadTripActive(), false);
 assert.equal(handleRoadTripKey({ key: "1", preventDefault() { throw new Error("must not be called"); } }), false);
 
-console.log("Road-trip checks passed.");
+console.log("Road-trip checks passed: exam-rule scoring, locked first picks, endings, bank-sweeping selection, coverage, records and the 3D gate simulation.");
