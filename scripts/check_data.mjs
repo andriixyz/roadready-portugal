@@ -53,11 +53,11 @@ const russianKeys = Object.keys(TRANSLATIONS.ru);
 for (const key of englishKeys) if (!(key in TRANSLATIONS.ru)) errors.push(`${key}: missing Russian UI translation`);
 for (const key of russianKeys) if (!(key in TRANSLATIONS.en)) errors.push(`${key}: missing English UI translation`);
 
-const runtimeSources = await Promise.all(["app.js", "sync.js", "speed-limits.js", "rule-drill.js", "offences.js", "distances.js", "index.html"].map(async (file) => ({
+const runtimeSources = await Promise.all(["app.js", "sync.js", "speed-limits.js", "rule-drill.js", "offences.js", "distances.js", "road-trip.js", "index.html"].map(async (file) => ({
   file,
   text: await readFile(new URL(file, root), "utf8"),
 })));
-const keyPattern = /["']((?:aria|nav|chrome|language|settings|dashboard|unit|practice|quiz|result|progress|topic|sources|storage|sync|meta|plan|speed|atlas|offence|distance)\.[A-Za-z0-9.-]+)["']/g;
+const keyPattern = /["']((?:aria|nav|chrome|language|settings|dashboard|unit|practice|quiz|result|progress|topic|sources|storage|sync|meta|plan|speed|atlas|offence|distance|trip)\.[A-Za-z0-9.-]+)["']/g;
 const pluralKeyBases = new Set(["storage.question", "storage.session", "unit.day", "unit.attempt"]);
 for (const source of runtimeSources) {
   for (const match of source.text.matchAll(keyPattern)) {
@@ -88,6 +88,10 @@ for (const vehicle of SPEED_ATLAS.vehicles) for (const { variant, values } of ve
   if (values.length !== SPEED_ATLAS.roads.length) errors.push(`speed row ${vehicle.id}.${variant}: expected ${SPEED_ATLAS.roads.length} road values`);
   for (const value of values) if (value !== null && (!Number.isInteger(value) || value < SPEED_ATLAS.sharedZone || value > 120 || value % 5 !== 0)) errors.push(`speed row ${vehicle.id}.${variant}: implausible limit ${value}`);
 }
+
+// The road-trip game addresses its stops, rules and endings through derived keys.
+const { ROAD_TRIP_KEYS } = await import("../road-trip.js");
+for (const key of ROAD_TRIP_KEYS) for (const language of ["en", "ru"]) if (!(key in TRANSLATIONS[language])) errors.push(`${key}: missing ${language === "en" ? "English" : "Russian"} road-trip translation`);
 
 // Offence and distance atlases list every derived key they render; check both dictionaries and the drills.
 const { OFFENCE_ATLAS, alcoholBand, applyPointEvent, pointsStatus } = await import("../offences.js");

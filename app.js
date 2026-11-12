@@ -1,5 +1,5 @@
 import { createSyncController, getDeviceId, incrementAnswerCounts, isValidSyncKey } from "./sync.js?v=20261008-1";
-import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261106-1";
+import { localeFor, normalizeLanguage, russianPluralKey, translate } from "./i18n.js?v=20261112-1";
 import { createQuizSession, setSessionNotSure, selectSessionAnswer, checkSessionAnswer, moveToQuestion, firstUnansweredIndex } from "./quiz-session.js?v=20261008-1";
 import { createQuestionImage, getQuestionChatGPTPrompt, getQuestionImagePath } from "./question-capture.js?v=20261012-1";
 import { MAX_BACKUP_BYTES, InvalidStudyProfileError, normaliseStudyProfile, recoverStudyProfile } from "./profile-data.js?v=20261008-1";
@@ -9,6 +9,7 @@ import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQue
 import { renderSpeedLimits } from "./speed-limits.js?v=20261106-1";
 import { renderOffences } from "./offences.js?v=20261106-1";
 import { renderDistances } from "./distances.js?v=20261106-1";
+import { renderRoadTrip, roadTripActive, resetRoadTrip, handleRoadTripKey } from "./road-trip.js?v=20261112-1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -337,6 +338,16 @@ function atlasNav(current) {
   return `<nav class="atlas-switcher" aria-label="${escapeHtml(t("atlas.label"))}">${RULE_ATLASES.map(([route, key]) => `<a href="#${route}"${route === current ? ' aria-current="page"' : ""}>${t(key)}</a>`).join("")}</nav>`;
 }
 
+// The road-trip game renders itself; it borrows the quiz's wording, recording and review helpers from here.
+const roadTripView = () => ({
+  t, escapeHtml, formatNumber, topicName, explanationSourceLink, setQuestionLanguage, showToast,
+  questions: () => questions, profile: () => profile, language: () => profile.language, uiLanguage: () => profile.uiLanguage,
+  imagePath: getQuestionImagePath, record: (question, correct) => recordQuestion(question, correct),
+  verificationMarkup: questionVerificationMarkup, reviewItem: renderReviewItem,
+  ensureRussian: ensureRussianCorpus, notice: russianCorpusNotice, canFocus: () => modal.hidden,
+});
+const tripPreview = () => `<a class="speed-preview trip-preview" href="#road-trip"><span class="speed-preview-numbers" aria-hidden="true">${t("trip.stop.faro")} <i>→</i> ${t("trip.stop.porto")}</span><div><strong>${t("trip.previewTitle")}</strong><p>${t("trip.previewHelp")}</p></div><span class="text-link">${t("trip.previewOpen")} →</span></a>`;
+
 function render() {
   let route = location.hash.replace("#", "") || "dashboard";
   if (route !== "quiz" && session && !session.result && !confirmLeaveSession()) {
@@ -358,6 +369,7 @@ function render() {
   else if (route === "sources") renderSources();
   else if (route === "speed-limits") renderSpeedLimits(main, { t, escapeHtml, atlasNav: atlasNav(route), onPractice: () => { void startSession("quick", "Velocidade"); } });
   else if (route === "offences") renderOffences(main, { t, escapeHtml, atlasNav: atlasNav(route), locale: currentLocale(), onPractice: () => { void startSession("quick", TOPIC_LICENSING); } });
+  else if (route === "road-trip") renderRoadTrip(main, roadTripView());
   else if (route === "distances") renderDistances(main, { t, escapeHtml, atlasNav: atlasNav(route), locale: currentLocale(), onPractice: () => { void startSession("quick", TOPIC_PARKING); } });
   else if (route === "quiz" && session?.result) renderResult(session, session.result);
   else if (route === "quiz" && session) renderQuestion();
@@ -414,6 +426,7 @@ function renderDashboard() {
         <article class="task-card"><div class="task-top"><span class="task-icon">↻</span><span class="mode-kicker">${t("dashboard.recall")}</span></div><h3>${t("dashboard.dueForReview", { count: formatNumber(s.due) })}</h3><p>${t("dashboard.intervals")}</p><button data-start="review">${t("dashboard.reviewDue")}</button></article>
         <article class="task-card"><div class="task-top"><span class="task-icon">${formatNumber(sessionSize("exam"))}</span><span class="mode-kicker">${t("dashboard.simulate")}</span></div><h3>${t("dashboard.officialMock")}</h3><p>${t("dashboard.mockDescription", { questions: examCount })}</p><button data-start="exam">${t("dashboard.startMock")}</button></article>
       </section>
+      ${tripPreview()}
 
       <div class="section-heading"><h2>${t("dashboard.glance")}</h2><a class="text-link" href="#progress">${t("dashboard.detailedProgress")}</a></div>
       <section class="stat-grid">
@@ -438,6 +451,7 @@ function renderPractice() {
         <a class="speed-preview" href="#offences"><span class="speed-preview-numbers" aria-hidden="true">1·1 <i>2·2</i> 3·3</span><div><strong>${t("offence.previewTitle")}</strong><p>${t("offence.previewHelp")}</p></div><span class="text-link">${t("offence.previewOpen")} →</span></a>
         <a class="speed-preview" href="#distances"><span class="speed-preview-numbers" aria-hidden="true">5 <i>25</i> 50 <i>m</i></span><div><strong>${t("distance.previewTitle")}</strong><p>${t("distance.previewHelp")}</p></div><span class="text-link">${t("distance.previewOpen")} →</span></a>
       </nav>
+      ${tripPreview()}
       <a class="card saved-preview" href="#saved-questions"><div><strong>${t("saved.title")}</strong><p>${t("saved.previewHelp")}</p></div><span class="text-link">${t("saved.open", { count: formatNumber(savedQuestionCollection().length) })} →</span></a>
       <section class="mode-grid">
         <article class="card mode-card featured"><span class="mode-badge">${t("practice.recommended")}</span><span class="mode-kicker">${t("practice.quickMeta", { questions: formatQuestionCount(sessionSize("learn")) })}</span><h3>${t("plan.task.new")}</h3><p>${t("plan.learnDescription", { count: formatQuestionCount(plan.unseen), target: formatNumber(plan.newTarget), size: formatNumber(SESSION_LIMITS.learn) })}</p><button class="button button-accent" data-start="learn">${t("plan.start.learn")}</button></article>
@@ -1019,9 +1033,9 @@ function showToast(message) { const toast = $("#toast"); toast.textContent = mes
 
 const shortcutsDialog = $("#shortcutsDialog");
 // Letter shortcuts use physical key codes so they also work with a Russian keyboard layout.
-const ROUTE_KEYS = { KeyD: "dashboard", KeyP: "practice", KeyG: "progress", KeyR: "results", KeyL: "speed-limits", KeyO: "offences", KeyI: "distances" };
+const ROUTE_KEYS = { KeyD: "dashboard", KeyP: "practice", KeyG: "progress", KeyR: "results", KeyL: "speed-limits", KeyO: "offences", KeyI: "distances", KeyT: "road-trip" };
 const SHORTCUT_GROUPS = [
-  ["shortcuts.anywhere", [["S", "shortcuts.startSuggested"], ["M", "shortcuts.startMock"], ["D", "nav.dashboard"], ["P", "nav.practice"], ["G", "nav.progress"], ["R", "nav.results"], ["L", "nav.speed"], ["O", "nav.offences"], ["I", "nav.distances"], [",", "nav.settings"], ["?", "shortcuts.title"]]],
+  ["shortcuts.anywhere", [["S", "shortcuts.startSuggested"], ["M", "shortcuts.startMock"], ["D", "nav.dashboard"], ["P", "nav.practice"], ["G", "nav.progress"], ["R", "nav.results"], ["L", "nav.speed"], ["O", "nav.offences"], ["I", "nav.distances"], ["T", "nav.trip"], [",", "nav.settings"], ["?", "shortcuts.title"]]],
   ["shortcuts.question", [["1–4", "shortcuts.answer"], ["Enter", "shortcuts.continue"], ["← →", "shortcuts.navigate"], ["N", "quiz.notSure"], ["C", "quiz.copyForChatGPT"], ["Shift+C", "quiz.copySolvedImage"], ["Esc", "quiz.exit"]]],
   ["shortcuts.results", [["A", "shortcuts.again"], ["S", "shortcuts.startSuggested"]]],
 ];
@@ -1042,6 +1056,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "?" || (event.code === "Slash" && event.shiftKey)) { event.preventDefault(); openShortcuts(); return; }
   if (event.code === "Comma") { event.preventDefault(); openSettings(); return; }
   if (ROUTE_KEYS[event.code]) { event.preventDefault(); location.hash = ROUTE_KEYS[event.code]; return; }
+  if (location.hash === "#road-trip" && handleRoadTripKey(event)) return;
   const inQuiz = session && !session.result && location.hash === "#quiz";
   if (!inQuiz) {
     if (event.code === "KeyS") { event.preventDefault(); startSuggestedSession(); }
@@ -1076,7 +1091,7 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("hashchange", render);
 window.addEventListener("beforeunload", (event) => {
-  if (!session || session.result) return;
+  if ((!session || session.result) && !roadTripActive()) return;
   event.preventDefault();
   event.returnValue = "";
 });
@@ -1298,6 +1313,7 @@ $("#resetData").addEventListener("click", async () => {
   saveProfile();
   const cloudErased = isSynced && await syncController?.syncNow();
   session = null;
+  resetRoadTrip();
   render();
   closeSettings();
   showToast(isSynced ? t(cloudErased ? "storage.erasedSynced" : "storage.eraseQueued") : t("storage.erasedLocal"));

@@ -30,6 +30,7 @@ Open findings from the 7–8 October 2026 manual pass are in [documentation/md/Q
 | UI strings and plural/locale helpers | `i18n.js`; static `data-i18n*` attributes in `index.html` |
 | Speed-limit memory map, recall drill and legal sources | `speed-limits.js`; `documentation/md/SPEED-LIMITS.md` |
 | Offence levels, alcohol, points and sanctions; stopping/parking and other distances | `offences.js`, `distances.js`, shared drill `rule-drill.js`; switcher in `app.js`; `documentation/md/OFFENCES.md`, `documentation/md/DISTANCES.md` |
+| Road-trip game: rules, scoring, question mix, device-local records and its view | `road-trip.js`; wiring, shortcuts and preview cards in `app.js` |
 | Layout, theme variables and responsive behavior | `styles.css`; page shell/settings in `index.html` |
 | Question content and reproducible corrections | `public/data/`; `scripts/reviewed-content.mjs`, `scripts/explanations.mjs`, translation scripts |
 | Bulk question review by external agents (packets, result checks, import) | `scripts/review_queue.mjs`; `review/ZCODE.md`, `review/AGENT.md`, law snapshots in `review/law/` |
@@ -55,7 +56,7 @@ Run the existing checks relevant to a change:
 | --- | --- |
 | Corpus, translations, UI translation keys, explanations | `rtk npm run check`; `rtk npm run check:content` |
 | IMT comparison metadata, source labels or question/image changes | `rtk npm run check:verification`; also quiz/study checks for rendering changes |
-| Quiz, scoring, navigation, activity, topic ordering | `rtk npm run check:quiz`; `rtk npm run check:study` |
+| Quiz, road-trip game, scoring, navigation, activity, topic ordering | `rtk npm run check:quiz`; `rtk npm run check:study` |
 | Backup, profile schema, startup recovery | `rtk npm run check:backup`; also study/sync checks when shared fields change |
 | Merge rules, linking, cloud controller, reset | `rtk npm run check:sync` |
 | Capture or ChatGPT prompt | `rtk npm run check:capture` |
@@ -70,6 +71,7 @@ For browser QA, use synthetic progress on a separate origin and disable Supabase
 - Preserve question IDs, Portuguese source wording, answer keys/order and source attribution. The corpus uses a **non-official study key**. Detailed reasoning must be reviewed for the exact question and linked to a relevant source; topic boilerplate must not be presented as a reviewed explanation.
 - UI language (`uiLanguage`: EN/RU) and question language (`language`: EN/RU/PT) are distinct. Add UI keys in both `i18n.js` dictionaries, including accessibility strings. Russian question content is a lazy overlay tied to the exact English corpus file hash.
 - Selecting an answer checks it immediately in every mode, locks the first attempt and shows feedback without advancing. Continue/navigation/submission requires the user's action, including after the final answer. Practice answers save once, even if abandoned. Mock answers count only on submission; unanswered mock questions count as wrong. Mocks have no deadline; the timer shows elapsed time.
+- The road-trip game follows the same answer rule and takes its three spare mistakes, 30-question exam length and one-minute pace from `OFFICIAL_EXAM`. Its answers are recorded once as practice; the pace bonus must never penalise, answer or end a trip; its records stay device-local.
 - Navigation, language changes and sync renders must preserve the active session, checked feedback, picks and elapsed time. Completed results must survive later renders without recording again. Sessions are in memory and do not resume after reload.
 - Keep review limited to due questions and mistakes limited to `wrong > correct`. Empty modes stay on the current page. Displayed session sizes must agree with actual selection limits.
 - Preserve per-device counters and legacy base counts. Merge each device's counters using maxima, then calculate totals; summing already-merged totals double-counts. Preserve `resetAt` so stale devices cannot resurrect erased progress.

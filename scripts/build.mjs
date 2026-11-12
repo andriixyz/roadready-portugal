@@ -12,7 +12,7 @@ await checkReviewedExplanationImages();
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 
-for (const file of ["index.html", "app.js", "i18n.js", "theme.js", "sync.js", "question-capture.js", "question-verification.js", "quiz-session.js", "profile-data.js", "study-activity.js", "exam-plan.js", "speed-limits.js", "rule-drill.js", "offences.js", "distances.js", "supabase-config.js", "styles.css", ".nojekyll"]) {
+for (const file of ["index.html", "app.js", "i18n.js", "theme.js", "sync.js", "question-capture.js", "question-verification.js", "quiz-session.js", "profile-data.js", "study-activity.js", "exam-plan.js", "speed-limits.js", "rule-drill.js", "offences.js", "distances.js", "road-trip.js", "supabase-config.js", "styles.css", ".nojekyll"]) {
   await cp(new URL(file, root), new URL(file, dist));
 }
 
