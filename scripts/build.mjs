@@ -12,10 +12,11 @@ await checkReviewedExplanationImages();
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 
-for (const file of ["index.html", "app.js", "i18n.js", "theme.js", "sync.js", "question-capture.js", "question-verification.js", "quiz-session.js", "profile-data.js", "study-activity.js", "exam-plan.js", "speed-limits.js", "rule-drill.js", "offences.js", "distances.js", "road-trip.js", "road-trip-3d.js", "supabase-config.js", "styles.css", ".nojekyll"]) {
+for (const file of ["index.html", "app.js", "i18n.js", "theme.js", "sync.js", "question-capture.js", "question-verification.js", "quiz-session.js", "profile-data.js", "study-activity.js", "exam-plan.js", "speed-limits.js", "rule-drill.js", "offences.js", "distances.js", "road-trip.js", "road-trip-3d.js", "supabase-config.js", "styles.css", "favicon.svg", "manifest.webmanifest", ".nojekyll"]) {
   await cp(new URL(file, root), new URL(file, dist));
 }
 
+await cp(new URL("icons/", root), new URL("icons/", dist), { recursive: true });
 await mkdir(new URL("public/", dist), { recursive: true });
 await cp(new URL("public/data/", root), new URL("public/data/", dist), { recursive: true });
 await cp(new URL("public/images/", root), new URL("public/images/", dist), { recursive: true });

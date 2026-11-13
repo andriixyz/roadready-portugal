@@ -16,7 +16,7 @@ const source = (await readFile(new URL("../app.js", import.meta.url), "utf8"))
 function harness(saved = null) {
   const nodes = new Map(), listeners = new Map(), storage = new Map();
   if (saved) storage.set("roadready-profile", saved);
-  const control = { allowLeave: false, rejectWrite: false, prompts: [], now: new Date(2026, 9, 2, 12).getTime() };
+  const control = { allowLeave: false, rejectWrite: false, prompts: [], scrolls: [], now: new Date(2026, 9, 2, 12).getTime() };
   class ClockDate extends Date {
     constructor(...args) { super(...(args.length ? args : [control.now])); }
     static now() { return control.now; }
@@ -39,13 +39,13 @@ function harness(saved = null) {
     Date: ClockDate, getDeviceId: () => "test-device",
     confirm(message) { control.prompts.push(message); return control.allowLeave; },
     document: { querySelector: node, querySelectorAll: () => [], body: node("body"), documentElement: node("html"), addEventListener() {} },
-    window: { addEventListener(type, callback) { listeners.set(type, callback); } },
+    window: { addEventListener(type, callback) { listeners.set(type, callback); }, scrollTo(x, y) { control.scrolls.push([x, y]); } },
     location, history: { replaceState(_state, _title, url) { location.hash = url.slice(url.indexOf("#")); } },
     localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => {
       if (control.rejectWrite) throw new Error("Quota exceeded");
       storage.set(key, value);
     } },
-    clearInterval() {}, setInterval() {}, setTimeout() {},
+    clearInterval() {}, setInterval() {}, setTimeout() {}, clearTimeout() {},
     getQuestionChatGPTPrompt: () => "test prompt", getQuestionImagePath: () => "",
     fixtureQuestions: Array.from({ length: 3 }, (_, index) => ({
       id: `test-${index}`, sourceId: index + 1, text: { en: `Question ${index + 1}` },
@@ -224,5 +224,38 @@ assert.equal(configured.run("JSON.stringify(session)"), activeSession, "Updating
 assert.equal(JSON.parse(configured.storage.get("roadready-profile")).examPlan.examDate, "2026-10-25");
 configured.run('setSessionLanguage("pt"); setSessionLanguage("en"); finishSession()');
 assert.equal(configured.run("profile.sessions[0].languageChanged"), true, "Mixed-language mock results must carry their exclusion flag");
+
+// A new profile gets a tentative exam three weeks from its first day, never a date already in the past.
+{
+  const app = harness();
+  assert.equal(app.run("JSON.stringify(studyPlan().config)"), JSON.stringify({ startedOn: "2026-10-02", examDate: "2026-10-22", language: "en" }));
+  assert.equal(app.run("studyPlan().phase"), "cover");
+  app.control.now += 40 * 86400000;
+  assert.equal(app.run("studyPlan().config.examDate"), "2026-10-22", "The tentative date must not drift while the page stays open");
+  const later = harness();
+  later.control.now += 40 * 86400000;
+  assert.equal(later.run("studyPlan().config.examDate"), "2026-12-01", "A profile first opened later starts from that day");
+  later.run("saveProfile({ sync: false })");
+  assert.equal(JSON.parse(later.storage.get("roadready-profile")).examPlan.examDate, "2026-12-01", "The first save keeps the tentative date");
+}
+
+// A different page starts at its top and names itself in the tab title; rerenders keep the reader's place.
+{
+  const app = harness();
+  app.run("render()");
+  assert.equal(app.control.scrolls.length, 0, "The first render must not scroll");
+  assert.equal(app.run("document.title"), translate("meta.title", "en"));
+  app.location.hash = "#practice";
+  app.listeners.get("hashchange")();
+  assert.deepEqual(app.control.scrolls.at(-1), [0, 0], "Opening another page scrolls to its top");
+  assert.equal(app.run("document.title"), "Practice · RoadReady");
+  const scrolls = app.control.scrolls.length;
+  app.run("render()");
+  assert.equal(app.control.scrolls.length, scrolls, "Rerendering the same page keeps the scroll position");
+  app.run('session = createQuizSession("quick", questions, "en"); location.hash = "#quiz"; render(); chooseAnswer("B");');
+  assert.equal(app.run("document.title"), "Quick practice · RoadReady");
+  assert.ok(app.node("#mainContent").innerHTML.includes("Study key: option 1"), "Feedback names the option by its on-screen number");
+  assert.equal(app.node("#mainContent").innerHTML.includes("Study key: option A"), false);
+}
 
 console.log("Study flow checks passed: leave guards, dated activity, streak gaps/DST/legacy totals, sync/reset, strict review/mistakes, session limits, all 16 topic rankings, atomic exam settings and preserved active mocks.");

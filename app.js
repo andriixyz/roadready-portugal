@@ -9,13 +9,15 @@ import { createExamPlan, validExamPlan, getExamPlan, examReadiness, selectNewQue
 import { renderSpeedLimits } from "./speed-limits.js?v=20261106-1";
 import { renderOffences } from "./offences.js?v=20261106-1";
 import { renderDistances } from "./distances.js?v=20261106-1";
-import { renderRoadTrip, roadTripActive, resetRoadTrip, handleRoadTripKey } from "./road-trip.js?v=20261112-2";
+import { renderRoadTrip, roadTripActive, resetRoadTrip, handleRoadTripKey } from "./road-trip.js?v=20261113-1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const main = $("#mainContent");
 const SESSION_LIMITS = { quick: 10, review: 20, mistakes: 20, exam: 30, learn: 30, repair: 20 };
-const suggestedExamPlan = { startedOn: "2026-10-07", examDate: "2026-10-27", language: "en" };
+// Until a date is saved, a profile gets a tentative exam three weeks from the day it is first opened.
+let tentativeExamPlan = null;
+const suggestedExamPlan = () => (tentativeExamPlan ||= createExamPlan());
 let topicOrder = "weakest";
 let runFilter = "exam";
 let savedQuestionPage = 0;
@@ -127,7 +129,7 @@ function loadProfile() {
   }
 }
 function saveProfile({ sync = true } = {}) {
-  profile.examPlan ||= { ...suggestedExamPlan };
+  profile.examPlan ||= { ...suggestedExamPlan() };
   profile.updatedAt = new Date().toISOString();
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   if (sync) syncController?.schedule();
@@ -274,7 +276,7 @@ function getStats() {
   const accuracy = correct + wrong ? Math.round((correct / (correct + wrong)) * 100) : 0;
   const due = dueQuestions().length;
   const mistakes = mistakeQuestions().length;
-  const evidence = examReadiness(questions, profile, (profile.examPlan || suggestedExamPlan).language, new Date(), corpusMeta.sample);
+  const evidence = examReadiness(questions, profile, (profile.examPlan || suggestedExamPlan()).language, new Date(), corpusMeta.sample);
   const examSessions = evidence.mocks;
   const mock = examSessions.length ? examSessions.reduce((sum, item) => sum + item.percent, 0) / examSessions.length : 0;
   const coverage = questions.length ? (seen / questions.length) * 100 : 0;
@@ -285,7 +287,7 @@ function getStats() {
   return { seen, correct, wrong, accuracy, due, mistakes, readiness, evidence, coverage, mock: Math.round(mock), todayAnswered, streak };
 }
 
-function studyPlan() { return getExamPlan(questions, profile, profile.examPlan || suggestedExamPlan, new Date(), corpusMeta.sample); }
+function studyPlan() { return getExamPlan(questions, profile, profile.examPlan || suggestedExamPlan(), new Date(), corpusMeta.sample); }
 function planDate(day) { return new Date(`${day}T12:00:00`).toLocaleDateString(currentLocale(), { day: "numeric", month: "short" }); }
 function planLanguage(plan) { return t(`plan.language.${plan.config.language}`); }
 function nextPlanMode(plan = studyPlan()) {
@@ -348,6 +350,12 @@ const roadTripView = () => ({
 });
 const tripPreview = () => `<a class="speed-preview trip-preview" href="#road-trip"><span class="speed-preview-numbers" aria-hidden="true">${t("trip.stop.faro")} <i>→</i> ${t("trip.stop.porto")}</span><div><strong>${t("trip.previewTitle")}</strong><p>${t("trip.previewHelp")}</p></div><span class="text-link">${t("trip.previewOpen")} →</span></a>`;
 
+const ROUTE_TITLES = {
+  practice: "nav.practice", "saved-questions": "saved.title", progress: "nav.progress", results: "nav.results", sources: "nav.sources",
+  "speed-limits": "nav.speed", offences: "nav.offences", distances: "nav.distances", "road-trip": "nav.trip",
+};
+let renderedRoute = null;
+
 function render() {
   let route = location.hash.replace("#", "") || "dashboard";
   if (route !== "quiz" && session && !session.result && !confirmLeaveSession()) {
@@ -374,6 +382,11 @@ function render() {
   else if (route === "quiz" && session?.result) renderResult(session, session.result);
   else if (route === "quiz" && session) renderQuestion();
   else renderDashboard();
+  const titleKey = route === "quiz" && session ? `runs.mode.${session.mode}` : ROUTE_TITLES[route];
+  document.title = titleKey ? `${t(titleKey)} · RoadReady` : t("meta.title");
+  // A new page starts at its top; rerenders of the same page keep the reader's place.
+  if (renderedRoute !== null && renderedRoute !== route) window.scrollTo(0, 0);
+  renderedRoute = route;
   if (modal.hidden) main.focus({ preventScroll: true });
 }
 
@@ -666,7 +679,7 @@ function renderQuestion() {
             return `<button class="answer-option ${status}" data-answer="${answer.key}" aria-pressed="${selected}" ${checked ? "disabled" : ""}><span class="answer-key">${i + 1}</span><span>${escapeHtml(answer[language] || answer.en || answer.pt)}</span><span class="answer-marker">${marker}</span></button>`;
           }).join("")}</div>
           ${answerState && (answerState.notSure || !answerState.correct) ? `<p class="question-saved-note" role="status">✓ ${t("saved.answerSaved")}</p>` : ""}
-          ${session.checked ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}" id="answerFeedback" tabindex="-1" role="status"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: q.correct })}</strong></div><p>${escapeHtml(explanation)}</p>${explanationSourceLink(q)}<small>${session.mode === "exam" ? t("quiz.feedbackHint") : session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
+          ${session.checked ? `<div class="feedback ${session.selected === q.correct ? "" : "incorrect"}" id="answerFeedback" tabindex="-1" role="status"><div class="feedback-heading"><span>${session.selected === q.correct ? "✓" : "!"}</span><strong>${session.selected === q.correct ? t("quiz.correct") : t("quiz.studyKey", { answer: optionNumber(q, q.correct) })}</strong></div><p>${escapeHtml(explanation)}</p>${explanationSourceLink(q)}<small>${session.mode === "exam" ? t("quiz.feedbackHint") : session.selected === q.correct ? t("quiz.returnLater") : t("quiz.returnSooner")}</small></div>` : ""}
           <div class="quiz-actions"><span class="quiz-hint">${t("quiz.keyboardHint")}</span><button class="button ${session.checked ? "button-primary" : "button-accent"}" id="quizPrimary" ${session.checked ? "" : "disabled"}>${session.checked ? advanceLabel : t("quiz.selectAnswer")} →</button></div>
           <div class="question-capture-actions"><button class="button button-primary" id="askChatGPT" type="button">${t("quiz.askChatGPT")} ↗</button><button class="button button-ghost" id="copyQuestionImage" type="button">▣ ${t("quiz.copyForChatGPT")}</button><button class="button button-ghost" id="copyQuestionPrompt" type="button">${t("quiz.copyPrompt")}</button>${session.checked ? `<button class="button button-ghost" id="copySolvedImage" type="button">▣ ${t("quiz.copySolvedImage")}</button>` : ""}<button class="button button-ghost" id="downloadQuestionImage" type="button" hidden>${t("quiz.downloadImage")}</button><a class="button button-ghost" id="chatGPTOpenLink" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" hidden>${t("quiz.openChatGPT")} ↗</a></div>
           <p class="capture-status" id="questionCaptureStatus" role="status">${t("quiz.chatGPTHint")}</p>
@@ -696,10 +709,16 @@ function renderQuestion() {
     img.replaceWith(Object.assign(document.createElement("div"), { className: "image-fallback", innerHTML: `<strong>${t("quiz.imageUnavailable")}</strong><br><br>${t("quiz.openSource")}` }));
   });
   if (session.mode === "exam") startTimer();
+  // Fetch the next picture early so moving on does not wait for it.
+  const upcoming = session.questions[session.index + 1];
+  if (upcoming?.image && typeof Image === "function") new Image().src = getQuestionImagePath(upcoming);
 }
 
+// Options are shown as 1–4 everywhere, so feedback and reviews name them the same way.
+const optionNumber = (question, key) => formatNumber(question.answers.findIndex((answer) => answer.key === key) + 1);
+
 function solvedCaptureSummary(question, pick) {
-  const number = (key) => formatNumber(question.answers.findIndex((answer) => answer.key === key) + 1);
+  const number = (key) => optionNumber(question, key);
   return pick === question.correct
     ? t("quiz.captureSolvedCorrect", { pick: number(pick) })
     : t("quiz.captureSolvedWrong", { pick: number(pick), answer: number(question.correct) });
@@ -972,13 +991,13 @@ function renderResults() {
 function renderReviewItem(question, answer, language) {
   const answerText = (key) => {
     const option = question.answers.find((item) => item.key === key);
-    return option ? `${key} · ${option[language] || option.en || option.pt}` : t("result.noAnswer");
+    return option ? `${optionNumber(question, key)} · ${option[language] || option.en || option.pt}` : t("result.noAnswer");
   };
   const id = question.sourceId || question.id;
   const image = question.image
     ? `<a class="review-image" href="${escapeHtml(question.image)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(t("quiz.openImage", { id }))}"><img src="${escapeHtml(getQuestionImagePath(question))}" data-remote-image="${escapeHtml(question.image)}" alt="${escapeHtml(t("quiz.imageAlt", { id }))}" loading="lazy" referrerpolicy="no-referrer" /></a>`
     : `<div class="review-image-placeholder">${t("quiz.textOnly")}</div>`;
-  return `<article class="card review-item">${image}<div class="review-copy"><a class="text-link" href="${escapeHtml(question.sourceUrl)}" target="_blank" rel="noopener noreferrer">${t("quiz.source", { id })}</a><h3>${escapeHtml(question.text?.[language] || question.text.en || question.text.pt)}</h3>${questionVerificationMarkup(question, true)}<dl class="review-answers"><div><dt>${t("result.yourAnswer")}</dt><dd>${escapeHtml(answerText(answer?.pick))}</dd></div><div><dt>${t("result.studyAnswer")}</dt><dd>${escapeHtml(answerText(question.correct))}</dd></div></dl><p>${escapeHtml(question.explanation?.[language] || question.explanation?.[profile.uiLanguage] || question.explanation?.en || t("result.correctFallback", { answer: question.correct }))}</p>${explanationSourceLink(question)}</div></article>`;
+  return `<article class="card review-item">${image}<div class="review-copy"><a class="text-link" href="${escapeHtml(question.sourceUrl)}" target="_blank" rel="noopener noreferrer">${t("quiz.source", { id })}</a><h3>${escapeHtml(question.text?.[language] || question.text.en || question.text.pt)}</h3>${questionVerificationMarkup(question, true)}<dl class="review-answers"><div><dt>${t("result.yourAnswer")}</dt><dd>${escapeHtml(answerText(answer?.pick))}</dd></div><div><dt>${t("result.studyAnswer")}</dt><dd>${escapeHtml(answerText(question.correct))}</dd></div></dl><p>${escapeHtml(question.explanation?.[language] || question.explanation?.[profile.uiLanguage] || question.explanation?.en || t("result.correctFallback", { answer: optionNumber(question, question.correct) }))}</p>${explanationSourceLink(question)}</div></article>`;
 }
 
 function startTimer() {
@@ -1029,7 +1048,15 @@ function renderSources() {
   main.innerHTML = `<div class="page">${russianCorpusNotice()}<header class="page-header"><div><span class="eyebrow">${t("sources.eyebrow")}</span><h1>${t("sources.title")}</h1><p>${t("sources.subtitle")}</p></div><span class="date-chip">${date ? t("sources.updated", { date }) : t("verification.unavailable.label")}</span></header>${comparison}<div class="notice"><strong>${t("sources.keyTitle")}</strong> ${t("sources.keyNotice")}<br><strong>${t("sources.translationTitle")}</strong> ${t("sources.translationNotice")}</div><div class="section-heading"><div><h2>${t("sources.groups")}</h2><p>${t("sources.groupsDescription")}</p></div><a class="text-link" href="https://www.imt-ip.pt/condutores/obtencao/perguntas-de-exame/" target="_blank" rel="noopener">${t("sources.openIndex")}</a></div><section class="source-grid">${Array.from({ length: 14 }, (_, i) => `<a class="card source-card" href="${escapeHtml(verificationAudit?.sources.get(i + 1)?.url || `${base}/rel_${i + 1}_condutores.pdf`)}" target="_blank" rel="noopener"><span class="pdf-icon">PDF</span><span><strong>${t("sources.group", { number: formatNumber(i + 1) })}</strong><span>${t("sources.original")}</span></span></a>`).join("")}</section><div class="section-heading"><div><h2>${t("sources.dataNotes")}</h2><p>${t("sources.dataDescription")}</p></div></div><section class="stat-grid"><article class="card stat-card"><span>${t("sources.bank")}</span><strong>${formatNumber(questions.length)}</strong><small>${t("sources.publicQuestions")}</small></article><article class="card stat-card"><span>${t("sources.topics")}</span><strong>${formatNumber(new Set(questions.map((q) => q.topic)).size)}</strong><small>${t("sources.syllabusAreas")}</small></article><article class="card stat-card"><span>${t("sources.languages")}</span><strong>${t("sources.languageValue")}</strong><small>${t("sources.toggleHelp")}</small></article><article class="card stat-card"><span>${t("sources.lastImport")}</span><strong>${corpusMeta.generatedAt ? new Date(corpusMeta.generatedAt).toLocaleDateString(currentLocale()) : "—"}</strong><small>${t("sources.localCorpus")}</small></article></section></div>`;
 }
 
-function showToast(message) { const toast = $("#toast"); toast.textContent = message; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2600); }
+let toastTimer = null;
+function showToast(message) {
+  const toast = $("#toast");
+  toast.textContent = message;
+  toast.classList.add("show");
+  // Restart the countdown so a second message is not hidden by the first one's timer.
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+}
 
 const shortcutsDialog = $("#shortcutsDialog");
 // Letter shortcuts use physical key codes so they also work with a Russian keyboard layout.
@@ -1052,7 +1079,7 @@ function startSuggestedSession() {
 document.addEventListener("keydown", (event) => {
   if (!modal.hidden) { handleSettingsKey(event); return; }
   if (shortcutsDialog.open || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
-  if (event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (!(event.target instanceof Element) || event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (event.key === "?" || (event.code === "Slash" && event.shiftKey)) { event.preventDefault(); openShortcuts(); return; }
   if (event.code === "Comma") { event.preventDefault(); openSettings(); return; }
   if (ROUTE_KEYS[event.code]) { event.preventDefault(); location.hash = ROUTE_KEYS[event.code]; return; }
@@ -1174,7 +1201,7 @@ function updateStorageSummary() {
 function updateExamPlanForm(force = false) {
   const form = $("#examPlanForm");
   if (!force && form?.contains?.(document.activeElement)) return;
-  const config = profile.examPlan || suggestedExamPlan;
+  const config = profile.examPlan || suggestedExamPlan();
   $("#examDate").value = config.examDate;
   $("#examLanguage").value = config.language;
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1185,7 +1212,7 @@ $("#examPlanForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const status = $("#examPlanStatus");
   const today = createExamPlan().startedOn;
-  const config = { ...(profile.examPlan || suggestedExamPlan), examDate: $("#examDate").value, language: $("#examLanguage").value };
+  const config = { ...(profile.examPlan || suggestedExamPlan()), examDate: $("#examDate").value, language: $("#examLanguage").value };
   if (config.startedOn > today) config.startedOn = today;
   if (!validExamPlan(config) || config.examDate <= today) { status.textContent = t("plan.invalidDate"); return; }
   const candidate = { ...profile, examPlan: config, updatedAt: new Date().toISOString() };
@@ -1307,7 +1334,7 @@ $("#resetData").addEventListener("click", async () => {
   const isSynced = Boolean(syncState.configured && syncState.hasSyncKey);
   const prompt = isSynced ? t("storage.eraseSyncedConfirm") : t("storage.eraseLocalConfirm");
   if (!confirm(prompt)) return;
-  const preferences = { uiLanguage: profile.uiLanguage, language: profile.language, examPlan: profile.examPlan || suggestedExamPlan };
+  const preferences = { uiLanguage: profile.uiLanguage, language: profile.language, examPlan: profile.examPlan || suggestedExamPlan() };
   localStorage.removeItem(PROFILE_KEY);
   profile = { ...defaultProfile(), ...preferences, resetAt: new Date().toISOString() };
   saveProfile();

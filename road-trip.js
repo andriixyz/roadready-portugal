@@ -434,6 +434,8 @@ function renderDrive() {
     img.replaceWith(Object.assign(document.createElement("div"), { className: "image-fallback", innerHTML: `<strong>${t("quiz.imageUnavailable")}</strong><br><br>${t("quiz.openSource")}` }));
   });
   if (!answer) startPace();
+  const upcoming = trip.questions[trip.index + 1];
+  if (upcoming?.image && typeof Image === "function") new Image().src = view.imagePath(upcoming);
 }
 
 // The pace bar only shows a shrinking bonus. Reaching zero costs nothing and never answers for the player.

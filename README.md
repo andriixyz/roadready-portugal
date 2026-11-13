@@ -6,7 +6,7 @@ For development and future agent sessions, see [AGENTS.md](AGENTS.md) and the [p
 
 ## Prepare for an exam in 20 days
 
-The dashboard starts with an **English preparation target of 27 October 2026**, twenty days after 7 October. This is a tentative study date, not a booking. Change the date and mock language under **Your profile → Your exam target**; the saved target syncs to linked devices and is included in backups.
+A new profile starts with an **English preparation target twenty days after the day it is first opened**. This is a tentative study date, not a booking; it is saved with the first answer and never moves on its own afterwards. Change the date and mock language under **Your profile → Your exam target**; the saved target syncs to linked devices and is included in backups.
 
 Start with the recommended diagnostic mock, then finish the dashboard's daily targets. The plan reserves the final four days for rehearsal and a lighter last day. A fresh 3,910-question profile needs about **245 new questions per day for the first 16 days**, plus recall, mistake repair and one daily mock. Expect several hours, depending on your mistakes and reading speed; the displayed remaining-time estimate is approximate. Missed days increase the remaining daily pace. During rehearsal, take two mocks a day and review every error.
 
@@ -42,6 +42,10 @@ Each right answer scores 100 points plus up to 50 for answering inside the exam'
 
 Game answers are ordinary practice: they update progress, review dates, daily activity and the Not sure & mistakes collection, and trips work through the whole bank. Each trip repeats at most 13 questions you last answered wrongly and otherwise takes only questions you have never answered, rotating through the least-covered topics, so all 3,910 questions are reached before any correctly answered one returns (at least 74 flawless trips from an empty profile). Once nothing is unseen, the least recently answered questions come back first. The lobby, a chip during the trip and the summary show how much of the bank you have covered in any mode. A trip lives in page memory, survives navigation and language changes, and is not resumed after a reload. Best score, farthest city, exam-length passes and trip count stay on this device only; they are not part of backups or sync, and erasing study progress clears them.
 
+## Readable on any screen
+
+Text on the app's plain surfaces meets a 4.5:1 contrast ratio in the light and dark themes, body text is at least 11 px, and on touch screens text-sized links and small toggles have a hit area of at least 44 px. The exceptions are the six-item phone navigation bar, chart tick labels and the caption inside the phone progress ring, which stay compact to fit. The app has an icon and a web manifest, so **Add to Home Screen** installs it with its own name and icon; it still needs a connection to load.
+
 ## Run locally
 
 ```bash
@@ -54,6 +58,8 @@ Open `http://localhost:4173`.
 Use a local HTTP server or the deployed site, not a `file://` URL. The first image preparation downloads the public question pictures; subsequent runs reuse the local cache.
 
 ## Move between questions
+
+Answer options are numbered 1–4 on screen, and feedback, reviews and solved screenshots name them by the same numbers. Opening another page starts at its top and names the page in the browser tab; rerendering the current page (a language change or a sync) keeps your place.
 
 Selecting an answer in any question mode immediately shows whether it was correct, highlights your choice and the study-key answer, and displays the available explanation. The question stays on screen until you choose **Continue** or **Next question**. This also applies to the last question: results appear only when you choose to finish. Answers lock after selection so reviewing the key cannot replace your original attempt.
 

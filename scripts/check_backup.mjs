@@ -39,12 +39,12 @@ function harness(initial = good) {
     prepareVerificationAudit, getQuestionVerification, verificationPdfUrl,
     getDeviceId: () => "test-device",
     document: { querySelector: node, querySelectorAll: () => [], documentElement: node("html"), body: node("body"), addEventListener() {} },
-    window: { addEventListener() {} }, location: { hash: "#dashboard" }, history: { replaceState() {} },
+    window: { addEventListener() {}, scrollTo() {} }, location: { hash: "#dashboard" }, history: { replaceState() {} },
     localStorage: {
       getItem: (key) => storage.get(key) ?? null,
       setItem(key, value) { if (control.rejectWrite) throw new Error("Quota exceeded"); storage.set(key, value); },
     },
-    clearInterval() {}, setTimeout() {},
+    clearInterval() {}, setTimeout() {}, clearTimeout() {},
     navigator: {},
     fetch: async (...args) => {
       if (control.fetch) return control.fetch(...args);

@@ -36,13 +36,13 @@ const context = vm.createContext({
     querySelector: node, querySelectorAll: () => [],
     body: node("body"), documentElement: node("html"), addEventListener() {},
   },
-  window: { addEventListener() {} },
+  window: { addEventListener() {}, scrollTo() {} },
   location: { hash: "#quiz" }, history: { replaceState() {} },
   localStorage: {
     getItem: key => storage.get(key) || null,
     setItem: (key, value) => storage.set(key, value),
   },
-  clearInterval() {}, setInterval() {}, setTimeout() {},
+  clearInterval() {}, setInterval() {}, setTimeout() {}, clearTimeout() {},
   navigator: {},
   getQuestionChatGPTPrompt: () => "test prompt", getQuestionImagePath: () => "",
   fixtureQuestions: Array.from({ length: 3 }, (_, index) => ({
@@ -140,8 +140,9 @@ run(`questions = fixtureQuestions; questions[0].image = 'https://example.test/ro
   session = createQuizSession('exam', questions, 'en'); chooseAnswer('B'); finishSession();`);
 assert.ok(main.innerHTML.includes('class="review-image"'), "Missed image questions need the image in results");
 assert.ok(main.innerHTML.includes('Source question #1'));
-assert.ok(main.innerHTML.includes('<dt>Your answer</dt><dd>B · Wrong option</dd>'));
-assert.ok(main.innerHTML.includes('<dt>Study-key answer</dt><dd>A · Correct option</dd>'));
+// Reviews name options by their on-screen numbers, never by the corpus's internal letters.
+assert.ok(main.innerHTML.includes('<dt>Your answer</dt><dd>2 · Wrong option</dd>'));
+assert.ok(main.innerHTML.includes('<dt>Study-key answer</dt><dd>1 · Correct option</dd>'));
 assert.ok(main.innerHTML.includes('<dt>Your answer</dt><dd>Not answered</dd>'), "Unanswered mock items must be explicit");
 
 // Verification and answer reasoning appear only after the first answer is selected.
